@@ -1,5 +1,3 @@
-
-
 // Author: Cristina Margalejo and Sebastian Schmidt, November 2022
 // Based on former macro by Konrad Altenmüller, June 2022
 //
@@ -57,6 +55,8 @@ int GetRunDuration(ROOT::RDataFrame data_filtered, double binw = 60, int rate_th
 
     double tmax = data_filtered.Max("timeStamp").GetValue();
     double tmin = data_filtered.Min("timeStamp").GetValue();
+
+
     tmax = tmin + (round((tmax - tmin + binw / 2) / binw) * binw);
     // create histogram
     TH1D* ht = new TH1D("timestamps", "timestamps", (tmax - tmin) / binw, tmin, tmax);
@@ -64,8 +64,8 @@ int GetRunDuration(ROOT::RDataFrame data_filtered, double binw = 60, int rate_th
         ht->Fill(i);
     }
     binw = ht->GetBinWidth(1);
-    TCanvas* c00 = new TCanvas();
-    ht->Draw();
+    // TCanvas* c00 = new TCanvas();
+    // ht->Draw();
     // check if bins are above threshold
     int nbins = ht->GetNbinsX();
     for (unsigned int i = 0; i < nbins; i++) {
@@ -159,9 +159,9 @@ std::pair<double, double> getScalingFactor(int energyIdx, std::string obs){
                 { 1,  { 0.78, 1.26 }  },
                 { 2,  { 0.78, 1.13 }  },
                 { 3,  { 0.78, 1.06 }  },
-                { 4,  { 1.36, 1.06 }  },
+                { 4,  { 1.22, 1.06 }  },
                 { 5,  { 1.0, 1.0 }  },
-                { 6,  { 1.0, 1.0 }  },
+                { 6,  { 1.22, 1.0 }  },
           }
         },
         { "tckAna_MaxTrack_YZ_GaussSigmaY", {
@@ -252,13 +252,18 @@ std::pair<double, double> getInitialCut(DataKind dKind, std::string obs){
             return std::make_pair(0.0, 0.0);
     };
 }
-
+//***************************************************************
+// Function to get the cut scaling applied to each energy range.
+//***************************************************************
 double getCutScaling(int energyIdx){
     std::vector<double> vec = { 0.2, 0.18, 0.15, 0.15, 0.0, 0.05 };
     return vec[energyIdx-1];
 }
 
-EnergyCutsVec cutVec;
+EnergyCutsVec cutVec; // global variable.
+//***************************************************************
+// Function to decide if an event pass the cuts or not.
+//***************************************************************
 bool applyCut(double energyBalance, double gaussSigmaX, double gaussSigmaY, double z2Sigma,
               double sigmaGaussBalance, double xySkew, double zSkew, double energy){
     const int energyIdx = getEnergyIdx(energy);
@@ -506,16 +511,27 @@ ROOT::RDF::RNode calcEnergyAndFilterTracks(ROOT::RDataFrame df, int runNumber, E
     // tracks cut
     result = result.Filter("tckAna_nTracks_X == 1");
     result = result.Filter("tckAna_nTracks_Y == 1");
+
+    // energy cut
+    //result = result.Filter("energy_keV <= 12");
+    //result = result.Filter("hitsAna_xMean*hitsAna_xMean+hitsAna_yMean*hitsAna_yMean < 100 ");
+
     result.Display()->Print();
 
     return result;
 }
 
 
-std::string applyBackgroundCuts(std::string fname, std::string commonPrefix,
+std::pair<std::string,int> applyBackgroundCuts(std::string fname, std::string commonPrefix,
                                 RunCutMap runCutMap, EnergyCalibMap energyCalibMap){
     // 1. generate DF from the input file
     ROOT::RDataFrame inputDf("AnalysisTree", fname);
+    // 1.1 compute the duration of each run
+    double binw = 60;
+    int rate_threshold = 10;  // counts per minute
+    int run_duration = GetRunDuration(inputDf, binw, rate_threshold);
+    cout << "\n\033[1;35mrun duration: " << run_duration << " s = " << (double)run_duration / 3600
+         << " h = " << (double)run_duration / (3600 * 24) << " d" << endl;
     // 2. find run number in root file using REST tools
     std::string prefix = commonPrefix + "/R";
     const auto runNumberDigits = 5;
@@ -549,7 +565,7 @@ std::string applyBackgroundCuts(std::string fname, std::string commonPrefix,
     }
     // bgData.Display({"hitsAna_z2Sigma"}, 100)->Print();
     std::cout << "Number of events left after cuts in run " << runNumber << " = " << *cnt << std::endl;
-    return result;
+    return std::make_pair(result,run_duration);
 }
 
 
@@ -577,13 +593,13 @@ void cut() {
 
     string processName_tckAna = "tckAna_";                       // process prefix
     string processName_hitsAna = "hitsAna_";                         // process prefix
-    string path = "/storage/cast/SR2019/analysis/argon/official/v2.3.13/";  // data path
+    string path = "/storage/cast/SR2019/analysis/argon/official/final/";  // data path
 
     // Introduce the filenames
     std::vector<std::string> runCutsCsv = {"/home/cristina/GitHub/iaxo-quickana/sigmaCutsRange1.csv", "/home/cristina/GitHub/iaxo-quickana/sigmaCutsRange2.csv","/home/cristina/GitHub/iaxo-quickana/sigmaCutsRange3.csv","/home/cristina/GitHub/iaxo-quickana/sigmaCutsRange4.csv","/home/cristina/GitHub/iaxo-quickana/sigmaCutsRange5.csv","/home/cristina/GitHub/iaxo-quickana/sigmaCutsRange6.csv"};
     std::string energyCalibCsv = "/home/cristina/GitHub/iaxo-quickana/calibrationFactorsDataset1.csv";
 
-    const std::string commonPrefix = "trackAnalysis";
+    const std::string commonPrefix = ""; //trackAnalysis
     RunCutMap runCutMap;
     for(size_t idx = 1; idx <= 6; idx++){
         auto map = readGaussSigmaCuts(runCutsCsv[idx-1], idx);
@@ -749,8 +765,11 @@ void cut() {
     // ROOT::RDataFrame Fe55Data("AnalysisTree",fileNamesFe55);
 
     std::vector<std::string> snapshots;
+    int total_duration = 0;
     for(auto fname : fileNamesBg){
-        auto snapshotName = applyBackgroundCuts(fname, commonPrefix, runCutMap, energyCalibMap);
+        auto snapshotDurationTuple = applyBackgroundCuts(fname, commonPrefix, runCutMap, energyCalibMap);
+	auto snapshotName = snapshotDurationTuple.first;
+	total_duration += snapshotDurationTuple.second;
         if(snapshotName.size() > 0){
             snapshots.push_back(snapshotName);
         }
@@ -758,23 +777,36 @@ void cut() {
 
     ROOT::RDataFrame bgData("AnalysisTree", snapshots);
     bgData.Snapshot("AnalysisTree", "background_df_all_runs.root");
+
+    //Make some plots and print results
+    double area = 36;
+    double kev = 12.0;
+    auto nEntriesAfterCuts = bgData.Count().GetValue();
+    std::cout << "Number of events that pass the cuts: " << nEntriesAfterCuts << std::endl;
+    std::cout << "Duration =  " << total_duration << " s" << " || " << total_duration / 3600 / 24 << " days " << std::endl;
+    auto bgRate = nEntriesAfterCuts / kev / area / total_duration;
+    std::cout << "Background rate = " << bgRate << " ± " << sqrt(nEntriesAfterCuts) /kev / area / total_duration << " counts/keV/cm²/s between 0 and 12 keV for the full readout area" << endl;
+    auto histo1 = bgData.Histo1D({"energy_keV", "Energy background", 48, 0, 12}, "energy_keV");
+    TCanvas* c01 = new TCanvas();
+    histo1->DrawClone();
+
     // auto calData2 = applyDefinesAndFilters(calData, energyIdx, dkXrayTube);
     // auto Fe55Data2 = applyDefinesAndFilters(Fe55Data, energyIdx, dkBackground);
     //
     //
-    // // ************************************************************
-    // // Estimate run duration
-    // // ************************************************************
-    //
+    // ************************************************************
+    // Estimate run duration
+    // ************************************************************
+
     // double binw = 60;
     // int rate_threshold = 10;  // counts per minute
     // int run_duration = GetRunDuration(bgData, binw, rate_threshold);
     // int run_duration_combined = 0;
     // run_duration_combined += run_duration;
-    //
+
     // cout << "\n\033[1;35mrun duration: " << run_duration << " s = " << (double)run_duration / 3600
     //      << " h = " << (double)run_duration / (3600 * 24) << " d" << endl;
-    //
+
     //
     // // ************************************************************
     // // CUTS: generate and apply the cut strings
