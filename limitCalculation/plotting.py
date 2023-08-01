@@ -7,7 +7,6 @@ from scipy.interpolate import interp1d
 from bisect import bisect_left
 import scipy.integrate as sc # simpson numerical integration routine
 
-#These are real data as of 14th july 2023
 totalTime = 337.0 * 60 * 60 # 337 h of "tracking time"
 areaBore = math.pi * (2.15 * 2.15) # cm² because bore diameter is 4.3 cm
 chipArea = 0.16*np.pi # in cm. I assume all flux is focused into a circular area of radius 4 mm. Thus pi*r^2= pit* 0.4^2 mm² on the detector. Relevant area for background!
@@ -36,29 +35,17 @@ def solarAxionFlux2019(E: float) -> float:
 
 
 def conversionProbability():
-    # the conversion probability in the CAST magnet ( does not depend on g_aγ esxplicitly because we have taken it out to be able to raise it
-    # later to the power of 4 without turning it >0)
-    # simplified vacuum conversion prob. for small masses
     B = 9.0 * 195.353 #to convert into natural units. I need the factor 195.353 and the resulting units for B turn into eV^2. See tesla_conversion.nim
     L = 9.26 * 5.06773e+06 # resulting units in eV^-1
     return (1 / 10**9 * B * L / 2.0) ** 2 # divided by 10**9 to convert from GeV^-1 to eV^-1
 
 
-# Here, dfTel and lerpTel are global variables that are defined independently of the function telescopeEff.
-# So they are only done once, and then used inside the function if this is called.
-# This csv file assumes parallel light. But in our case whe get light from the solar core, which is about 3 arcmin,
-# so the efficiency is lower, like in the paper of 2013.
 dfTel = pd.read_csv("data/llnl_xray_telescope_cast_effective_area_parallel_light_DTU_thesis.csv")
 dfTel["Efficiency"] = dfTel["EffectiveArea[cm²]"] / areaBore * (8.174 / 10.15) # The numbers scale the parallel light effective area to the CAST JCAP 2015 effective area
 #print(dfTel)
 lerpTel = interp1d(dfTel["Energy[keV]"], dfTel["Efficiency"], bounds_error = False, fill_value = 0.0)
 def telescopeEff(E):
     return lerpTel(E)
-
-# Including the software efficiency by interpolation
-#lerpSoftEffAr1 = interp1d(EnergiesSoftware, SoftwareEfficiencyAr1, bounds_error = False, fill_value = 0.0)
-#def softwareEff(E):
-#    return lerpSoftEffAr1(E)
 
 def softwareEff(E):
     idx = 0
@@ -68,8 +55,6 @@ def softwareEff(E):
         idx = idx + 1
     return SoftwareEfficiencyAr1[idx]
 
-
-
 #Including the detector (gas+mylar) efficiency
 dfDetAr = pd.read_csv("data/ArgonAndWindowEfficiency.csv")
 lerpDetAr = interp1d(dfDetAr["Photon energy [keV]"], dfDetAr["Efficiency"], bounds_error = False, fill_value = 0.0)
@@ -78,23 +63,14 @@ def detectorArEff(E):
 
 def totalSignal(g_aγ4):
     ## Flux integrated to total time, energy and area in counts of X-rays.
-    # 1. integrate the solar flux
-    ## NOTE: in practice this integration must not be done in this proc! Only perform once!
+   
     xs = np.linspace(0.0, 10.0, 100)
     fl = np.array([solarAxionFlux(x) * telescopeEff(x) * detectorArEff(x) * softwareEff(x) for x in xs])
-    #fl = np.array([solarAxionFlux(x, g_aγ) for x in xs])
     integral = sc.simpson(fl, # convert units to float for compatibility
                           xs) # convert back to units (integrated out `keV⁻¹`!)
-    # 2. compute final flux by "integrating" out the time and area
-    #print("Integral of axion flux * efficiency = ", integral, " time ", totalTime, " bore ", areaBore, " prob ", conversionProbability(g_aγ))
-    #print("Total signal [counts] = ", integral * totalTime * areaBore * conversionProbability(g_aγ))
     return integral * totalTime * areaBore * conversionProbability() * g_aγ4
 
-## NOTE: only important that signal and background have the same units!
-# It gives the amount of signal in counts keV⁻¹ expected for each channel.
-# In this case channels are energy bins, so correspond to energy E.
 def signal(E, g_aγ4): # in counts keV⁻¹
-    ## Returns the axion flux based on `g` and energy `E`
     return solarAxionFlux(E) * totalTime * areaBore * conversionProbability() * telescopeEff(E) * detectorArEff(E) * softwareEff(E) * g_aγ4 #be careful because this area is that of the bore, not the spot on the readout
 
 
