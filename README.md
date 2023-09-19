@@ -5,8 +5,8 @@ ROOT and Python scripts used in the analysis of CAST Micromegas data analysis.
 Under the directory `cutDefinition` one can find sample macros that are relevant to optimize and apply
 the X-ray cuts to the background data.
 The specific macros used for each of the 2019-2021 datasets still have to be uploaded.
-* `optimizeCuts_FOMcalculator_CAST.C` is a ROOT macro to optimize the X-ray cuts.
-*  `ApplyBackgroundCuts.C`is a ROOT macro to apply the cuts, including the X-ray tube extrapolation strategy.
+* `sample_optimizeCuts_FOMcalculator_CAST.C` is a ROOT macro to optimize the X-ray cuts.
+*  `SampleApplyBackgroundCuts.C`is a ROOT macro to apply the cuts, including the X-ray tube extrapolation strategy.
 
 ## Limit calculation
 Under the directory `limitCalculation` one can find a python script to compute the axion-photon coupling as well
