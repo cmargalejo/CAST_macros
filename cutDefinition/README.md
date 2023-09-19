@@ -1,5 +1,8 @@
 # Quick access to the data
-The final ROOT dataframes containing background data after X-ray cuts are kept here. Fiducial or veto cut not applied yet, only X-ray cuts. THey are purely ROOT dataframes to try to ensure their readability and use in time. These files are:
+The final ROOT dataframes containing background data after X-ray cuts in the 0 to 12 keV energy range are kept here. Fiducial, veto or tracking cuts not applied yet, only X-ray cuts. They are purely ROOT dataframes to try to ensure their readability and use in the future.
+
+It is important to take into account that these DF still have to be rotated by 45º if one wants to compare them with the existing simulations, as the readout in the physical setup is rotated itself. Also, the positions are defined from the point of view of the incoming photon, whereas the simulations that "see" the readout from behind, a specular image is needed.
+These files are:
 * background_df_all_runs_incArDataset2HitChannels_v2.4.0_final_withRateAna_withAllSC.root
 * background_df_all_runs_dataset2_subsets2and3_v2.4.0_extrapolatedCuts_withRateAna.root
 * MISSING
