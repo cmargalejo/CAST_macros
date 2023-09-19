@@ -2,8 +2,8 @@
 
 In this directory there are macros that specific for each of CAST datasets. There is one macro to generate a ROOT dataframe of each dataset, because each of them has different cuts that we need to apply. The calibration factors for each run are also included.
 
- *Dataset 1: Ar data in which only hit channels were saved
-    *applyBackgroundCuts_v2.4.0.C'  : macro to compute the cuts for each energy range, apply them to all the runs, and generate a ROOT dataframe keeping only the events that pass the X-ray cuts. Fiducial or veto cut are still not applied here.
+ -Dataset 1: Ar data in which only hit channels were saved
+    -applyBackgroundCuts_v2.4.0.C'  : macro to compute the cuts for each energy range, apply them to all the runs, and generate a ROOT dataframe keeping only the events that pass the X-ray cuts. Fiducial or veto cut are still not applied here.
     Usage:
     ```
    restRoot
@@ -21,7 +21,7 @@ In this directory there are macros that specific for each of CAST datasets. Ther
     ```
     where the cutstring can be, e.g., 'energy_keV>0'.
 
-*Dataset 2: Ar data in which all channels were saved
-*Dataset 3 : Xe data
+-Dataset 2: Ar data in which all channels were saved
+-Dataset 3 : Xe data
 
 
