@@ -4,6 +4,7 @@ In this directory there are macros that specific for each of CAST datasets. Ther
 
 ## Dataset 1: Ar data in which only hit channels were saved
 * **applyBackgroundCuts_v2.4.0.C**  : macro to compute the cuts for each energy range, apply them to all the runs, and generate a ROOT dataframe keeping only the events that pass the X-ray cuts. Fiducial or veto cut are still not applied here. It is important to know that some of the observables have a different cut for each run. In this case, the values are input using .csv files which are also available in this repository. The calibration factors are also included using .csv files.
+
 Usage:
 ```
 restRoot
@@ -11,8 +12,9 @@ restRoot
 cut()
 ```
 
-* **XRayTube_FOM_scalingCalculator_v2.4.0.C** : macro to compute the scaling factor to be applied to the energy ranges different that the one for 5.9 keV. The results are incorporated into the former macro `applyBackgroundCuts_v2.4.0.C`
+* **XRayTube_FOM_scalingCalculator_v2.4.0.C** : macro to compute the scaling factor to be applied to the energy ranges different that the one for 5.9 keV. The results are used by the former macro `applyBackgroundCuts_v2.4.0.C`. This means that if you just want to re-run the analysis as it was originally done, you don't need this macro as its results are incorporated into the former macro `applyBackgroundCuts_v2.4.0.C`
 * **applyFiducialAndVetoCuts.C** : macro that receives the ROOT dataframe generated with the former macro `applyBackgroundCuts_v2.4.0.C`, and allows to apply veto and fiducial cuts.
+
 Usage:
 ```
 restRoot
@@ -22,6 +24,11 @@ cut("cutstring")
 where the cutstring can be, e.g., `energy_keV>0`.
 
 ## Dataset 2: Ar data in which all channels were saved
+The cuts are different to those in dataset 1, so different macros are used. However, the procedure is exactly the same. The macros are:
+* XRayTube_FOM_scalingCalculator_v2.4.0_dataset2.C
+* applyBackgroundCuts_v2.4.0_dataset2.C
+* applyFiducialAndVetoCuts_dataset2.C
+
 ## Dataset 3 : Xe data
 
 
