@@ -92,7 +92,7 @@ void cut(std::string cutstring) {
     //fileNamesBg.push_back(path + "background_df_all_runs_Dataset3_Xe_bottle2_filter1_55FeCuts_noScaling.root");
     //fileNamesBg.push_back(path + "background_df_all_runs_dataset2_subsets2and3_calibrated.root"); //background_df_all_runs.root; background_df_all_runs_dataset2.root; background_df_all_runs_dataset2_subsets2and3_ratio003.root; background_df_all_runs_dataset2_subsets2and3_ratio003_calibrated.root; background_df_all_runs_dataset2_subsets2and3_ratio004_calibrated.root
     //fileNamesBg.push_back(path + "background_df_all_runs_Dataset3_Xe_55FeCuts_noScaling_RMSsigmaZ_new.root");
-    fileNamesBg.push_back(path + "background_df_all_runs_Dataset3_Xe_extrapolatedCuts_newSigmas_symmetricSigmaXandY_v2.4.0.root"); //background_df_all_runs_Dataset3_Xe_55FeCuts_RMSsigmaZ_new.root background_df_all_runs_Dataset3_Xe_extrapolatedCuts_v2.4.0.root; background_df_all_runs_Dataset3_Xe_extrapolatedCuts_newSigmas_v2.4.0.root
+    fileNamesBg.push_back(path + "background_df_all_runs_Dataset3_Xe_extrapolatedCuts_newSigmas_symmetricSigmaXandY_v2.4.0_SCdata.root"); //background_df_all_runs_Dataset3_Xe_55FeCuts_RMSsigmaZ_new.root background_df_all_runs_Dataset3_Xe_extrapolatedCuts_v2.4.0.root; background_df_all_runs_Dataset3_Xe_extrapolatedCuts_newSigmas_v2.4.0.root; background_df_all_runs_Dataset3_Xe_extrapolatedCuts_newSigmas_symmetricSigmaXandY_v2.4.0.root
 
 	// ******************************
 	// Create RDataFrames
@@ -184,7 +184,7 @@ void cut(std::string cutstring) {
 	//calData_filtered = calData_filtered.Filter("tckAna_nTracks_X == 1 && tckAna_nTracks_Y == 1");
 
 	// radius cut
-	bgData_filtered = bgData_filtered.Filter("hitsAna_xMean*hitsAna_xMean+hitsAna_yMean*hitsAna_yMean < 100");
+	bgData_filtered = bgData_filtered.Filter("hitsAna_xMean*hitsAna_xMean+hitsAna_yMean*hitsAna_yMean < 16");
 	//bgData_filtered = bgData_filtered.Filter("radius < 100");
 	//bgData_filtered = bgData_filtered.Filter("radius > 225");
 	//bgData_filtered = bgData_filtered.Filter("radius < 625");
@@ -202,11 +202,11 @@ void cut(std::string cutstring) {
 
 	//veto cut
 	//bgData_filtered = bgData_filtered.Filter("vetoAmplitude < 200 || (vetoAmplitude >= 200 && (vetoTime >300 || vetoTime < 100))"); //Ar
-	//bgData_filtered = bgData_filtered.Filter("vetoAmplitude < 200 || (vetoAmplitude >= 200 && (vetoTime >300 || vetoTime < 0))"); //Xe
+	bgData_filtered = bgData_filtered.Filter("vetoAmplitude < 200 || (vetoAmplitude >= 200 && (vetoTime >300 || vetoTime < 0))"); //Xe
 	//bgData_filtered = bgData_filtered.Filter("vetoAmplitude < 200 || (vetoAmplitude >= 200 && vetoTime >300)"); //Xe
 	//bgData_filtered = bgData_filtered.Filter("vetoAmplitude < 200 || (vetoAmplitude >= 200 && (vetoTime >300))");
     //bgData_filtered = bgData_filtered.Filter("vetoAmplitude < 200");
-    bgData_filtered = bgData_filtered.Filter("vetoAmplitude < 500 || (vetoAmplitude >= 500 && (vetoTime >300))");
+    //bgData_filtered = bgData_filtered.Filter("vetoAmplitude < 500 || (vetoAmplitude >= 500 && (vetoTime >300))");
 	// energy cut
 	//bgData_filtered = bgData_filtered.Filter("tckAna_MaxTrackEnergy > 5617 && tckAna_MaxTrackEnergy < 7490"); //5000 to 12000 or 2000 to 4000 or between, 5000 to 7500
 	//calData_filtered = calData_filtered.Filter("tckAna_MaxTrackEnergy > 5617 && tckAna_MaxTrackEnergy < 7490");
@@ -316,7 +316,9 @@ void cut(std::string cutstring) {
 	//cout << "Calibration: cut efficiency = " << 100 * n1_cal / n0_cal << " %" << endl;
 	//cout << "\n FOM before cut = " << FOM0 << endl;
 	//cout << "FOM after cut = " << FOM1 << endl;
-	cout << "\nBackground level = " << n1_bg /12.0/3.14159265/9573897 << " c/keV/cm²/s" << endl; //Xe new parameters al runs except R107* 12691728 //bottle2, filter 1: 4111983.4 //Xe all runs: 12813960 or 12816700 //only with SC data:9573897
+	cout << "\nBackground level = " << n1_bg /12.0/3.14159265/12298500 << " c/keV/cm²/s" << endl;
+	//Xe new parameters al runs except R107* 12691728 //bottle2, filter 1: 4111983.4 //Xe all runs: 12813960 or 12816700 //only with SC data:9573897
+	// Including all SC data: 12874982; Only during no tracking: 12298500
 	cout << "\n\n\033[0m";
 
 

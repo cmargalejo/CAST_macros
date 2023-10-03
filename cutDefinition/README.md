@@ -50,6 +50,8 @@ This analysis ended up being a bit more complex. There are also a lot of data, s
 ``` 
 g++ -o optimizeCuts_Xe_v2.4.0 optimizeCuts_Xe_v2.4.0.C -O3 `root-config --cflags --libs` -L/programas/rest/v2.4.0/lib -lRestFramework -lRestConnectors -lRestDetector -lRestGeant4 -lRestLegacy -lRestRaw -lRestTrack
 ```
+While the macro does not actualy use any REST functionality itself, the ROOT trees it works with depend on REST, therefore we have to tell ROOT to load the REST shared libraries. This is done by including `TSystem.h` and then calling `gSystem->Load`.
+
 ### optimizeCuts_Xe_v2.4.0.C
 Macro that computes and applies the cuts. Like tha macros for the other datasets, it generates a ROOT dataframe containing only the X-ray-like events, but no veto or fiducial cut. It has to be run in two steps, one to generate a DF of each run, and also 2 txt files containting the duration of each run and the run number. Then these 2 .txt files are used as arguments for the `analyze` function, which gives the background rate.
 

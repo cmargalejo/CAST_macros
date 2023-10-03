@@ -182,7 +182,7 @@ void cut(std::string cutstring) {
 	//calData_filtered = calData_filtered.Filter("tckAna_nTracks_X == 1 && tckAna_nTracks_Y == 1");
 
 	// radius cut
-	bgData_filtered = bgData_filtered.Filter("radius < 100 "); //100, 16
+	//bgData_filtered = bgData_filtered.Filter("radius < 16 "); //100, 16
 	//calData_filtered = calData_filtered.Filter("radius < 100");
 
 	//ring cuts
@@ -193,9 +193,11 @@ void cut(std::string cutstring) {
 	//bgData_filtered = bgData_filtered.Filter("hitsAna_xMean*hitsAna_xMean+hitsAna_yMean*hitsAna_yMean >= 400 && hitsAna_xMean*hitsAna_xMean+hitsAna_yMean*hitsAna_yMean < 625"); //15 to 25 mm
 	//bgData_filtered = bgData_filtered.Filter("hitsAna_xMean*hitsAna_xMean+hitsAna_yMean*hitsAna_yMean >= 625 && hitsAna_xMean*hitsAna_xMean+hitsAna_yMean*hitsAna_yMean < 900"); //25 to 30 mm
 
-
+	//tracking cut to compute background
+	//bgData_filtered = bgData_filtered.Filter("scTck_SolarTracking <= 0");
+	
 	//veto cut
-	//bgData_filtered = bgData_filtered.Filter("vetoAmplitude < 200 || (vetoAmplitude >= 200 && (vetoTime >300 || vetoTime < 100))");
+	bgData_filtered = bgData_filtered.Filter("vetoAmplitude < 200 || (vetoAmplitude >= 200 && (vetoTime >300 || vetoTime < 100))");
 	//bgData_filtered = bgData_filtered.Filter("veto_MaxPeakAmplitude.second < 200");
 
 	// energy cut

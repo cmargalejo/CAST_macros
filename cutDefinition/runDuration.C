@@ -40,7 +40,7 @@ void runDuration() {
     // Add your filenames to this vector
 
     //Ar dataset 1
-    /*
+    
     fileNames.push_back("/storage/cast/SR2019/analysis/argon/official/v2.4.0/final/SC_new/R10178*");
     fileNames.push_back("/storage/cast/SR2019/analysis/argon/official/v2.4.0/final/SC_new/R10182*");
     fileNames.push_back("/storage/cast/SR2019/analysis/argon/official/v2.4.0/final/SC_new/R10188*");
@@ -169,7 +169,7 @@ void runDuration() {
     fileNames.push_back("/storage/cast/SR2019/analysis/argon/official/v2.4.0/final/SC_new/R10660*");
     fileNames.push_back("/storage/cast/SR2019/analysis/argon/official/v2.4.0/final/SC_new/R10663*");
     fileNames.push_back("/storage/cast/SR2019/analysis/argon/official/v2.4.0/final/SC_new/R10665*");
-   */
+   
    //Ar dataset 2
    /*
     fileNames.push_back("/storage/cast/SR2019/analysis/argon/official/v2.4.0/final/R10671*");
@@ -198,6 +198,7 @@ void runDuration() {
     fileNames.push_back("/storage/cast/SR2019/analysis/argon/official/v2.4.0/final/R10842*");
     fileNames.push_back("/storage/cast/SR2019/analysis/argon/official/v2.4.0/final/R10843*");
     */
+    /*
     // Xe dataset
     //Bottle 1, filter 1
     fileNames.push_back("/storage/cast/SR2019/analysis/xenon/official/v2.4.0/final/SC_new/R10710*");
@@ -405,7 +406,7 @@ void runDuration() {
     fileNames.push_back("/storage/cast/SR2019/analysis/xenon/official/v2.4.0/final/SC_new/R11563*");
     fileNames.push_back("/storage/cast/SR2019/analysis/xenon/official/v2.4.0/final/SC_new/R11565*");
     fileNames.push_back("/storage/cast/SR2019/analysis/xenon/official/v2.4.0/final/SC_new/R11567*");
-
+    */
 
 
 
@@ -424,7 +425,7 @@ void runDuration() {
         total_duration += duration;
 
         // scTck_SolarTracking == 0
-        auto df_SolarTracking0 = df.Filter("scTck_SolarTracking == 0");
+        auto df_SolarTracking0 = df.Filter("scTck_SolarTracking <= 0");
         int duration_0 = GetRunDuration(df_SolarTracking0, binw, rate_threshold);
         total_duration_0 += duration_0;
 
@@ -442,7 +443,7 @@ void runDuration() {
 
     cout << "==================================================================" << endl;
     cout << "\n\033[1;35mTotal run duration: " << total_duration << " s = " << static_cast<double>(total_duration) / 3600 << " h = " << static_cast<double>(total_duration) / (3600 * 24) << " d" << endl;
-    cout << "Total run duration (scTck_SolarTracking == 0): " << total_duration_0 << " s = " << static_cast<double>(total_duration_0) / 3600 << " h = " << static_cast<double>(total_duration_0) / (3600 * 24) << " d" << endl;
+    cout << "Total run duration (scTck_SolarTracking <= 0): " << total_duration_0 << " s = " << static_cast<double>(total_duration_0) / 3600 << " h = " << static_cast<double>(total_duration_0) / (3600 * 24) << " d" << endl;
     cout << "Total run duration (scTck_SolarTracking > 0): " << total_duration_positive << " s = " << static_cast<double>(total_duration_positive) / 3600 << " h = " << static_cast<double>(total_duration_positive) / (3600 * 24) << " d" << endl;
 }
 
