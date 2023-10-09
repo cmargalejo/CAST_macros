@@ -39,7 +39,9 @@ def perform_interpolation(filename, csv_filename):
     #sigma = convolved_resolution / (2 * np.sqrt(2 * np.log(2)))  # Convert FWHM to standard deviation
     #gaussian = gaussian_kernel(kernel_size, sigma)
     #convolved_zs = convolve2d(zs, gaussian, mode='same', boundary='wrap')
-    sigma = convolved_resolution / (2 * np.sqrt(2 * np.log(2))) #by definition, convolved_resolution = FWHM = 2 * sqrt(2 * ln(2)) * sigma
+    sigma = convolved_resolution / 2.35482 #by definition, convolved_resolution = FWHM = 2 * sqrt(2 * ln(2)) * sigma = 2.35482 * sigma
+    sigma = sigma / 100 #to convert into um
+    print("Sigma = ", sigma)
     convolved_zs = gaussian_filter(zs, sigma=sigma, mode='wrap')
     # Create a RegularGridInterpolator
     interp_func = RegularGridInterpolator((unique_x, unique_y), convolved_zs, method='linear', bounds_error = False, fill_value = 0.0) #linear, nearest
@@ -97,8 +99,8 @@ def perform_interpolation(filename, csv_filename):
     ## XXX: don't have `z` at the moment
     # Calculate contour levels for 95%, 90%, and 85% of the data
     zNonZero = df[df["z"] > 0.0]
-    contour_levels = np.percentile(df["z"], [68,85,95]) #zs or z?
-    contour_levels_no_zeroes = np.percentile(zNonZero["z"], [68,85,95]) #zs or z?
+    contour_levels = np.percentile(df["z"], [100-95,100-85,100-65]) #zs or z?
+    contour_levels_no_zeroes = np.percentile(zNonZero["z"], [5,15,35]) #zs or z? [68,85,95] [100-95,100-85,100-65]
     print("contour levels = ", contour_levels_no_zeroes)
    
     #Print the percentiles used in a text box    
@@ -151,6 +153,9 @@ def perform_interpolation(filename, csv_filename):
 #map_filename = '/home/cristina/GitHub/CAST_macros/limitCalculation/data/Jaime_data/2016_DEC_Final_CAST_XRT/3.00keV_2Dmap.txt'
 map_filename = '/home/cristina/GitHub/CAST_macros/limitCalculation/data/Jaime_data/2016_DEC_Final_CAST_XRT/3.00keV_2Dmap_CoolX.txt'
 csv_filename = 'data/cluster_candidates_tracking.csv'
-convolved_resolution = 5  # Desired convolved spatial resolution (FWHM) in mm
+convolved_resolution = 500  # Desired convolved spatial resolution (FWHM) in um (microns) is convolved_resolution FWHM = 2 * sqrt(2 * ln(2)) * sigma    
+                            # 500 microns is equivalent to a physical resolution of 200 microns, Why? If FWHM=500 um, sigma=2.12*100 = 212 um. In other words, in the zs matrix, if sigma=2
+                            # it means we use 2 indices in each direction to blur the image (better said, 2 indices are within the 1 sigma region, but it uses more indices).
+                            # Each index is 0.1mm away so 2 indices is 0.2mm or 200 microns.
 perform_interpolation(map_filename, csv_filename)
 
