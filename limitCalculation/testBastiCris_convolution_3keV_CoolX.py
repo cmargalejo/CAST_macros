@@ -12,13 +12,33 @@ from scipy.ndimage import gaussian_filter
 #    )
 #    return kernel / np.sum(kernel)
 
+def weighted_percentile(matrix, q):
+    values = matrix.flatten()
+    weights = values.tolist()
+
+    # Sort values
+    sorted_indices = np.argsort(values)
+    sorted_values = values[sorted_indices]
+    sorted_weights = np.array(weights)[sorted_indices]
+
+    # Compute cumulative weights
+    cum_weights = np.cumsum(sorted_weights)
+    total_weight = cum_weights[-1]
+
+    # Find the index where the cumulative weight exceeds the desired percentile
+    target_weight = q / 100. * total_weight
+    index = np.searchsorted(cum_weights, target_weight)
+
+    return sorted_values[index]
 
 def perform_interpolation(filename, csv_filename):
     # Read the text file using Pandas
     df = pd.read_csv(filename, skiprows = 2, delim_whitespace = True, names = ["x", "y", "z"])
     # Compute normalized data. Using *MEAN* of *DATA*
-    df["x"] = df["x"] - df["x"].mean() + 1.3
-    df["y"] = df["y"] - df["y"].mean() + 0.025
+    #df["x"] = df["x"] - df["x"].mean() + 1.3
+    #df["y"] = df["y"] - df["y"].mean() + 0.025
+    df["x"] = df["x"] - 30
+    df["y"] = df["y"] - 30
     # Sort data by *X* then *Y*
     df = df.sort_values(by = ["x", "y"], ascending = True)
     # Number of elements per axis
@@ -40,7 +60,7 @@ def perform_interpolation(filename, csv_filename):
     #gaussian = gaussian_kernel(kernel_size, sigma)
     #convolved_zs = convolve2d(zs, gaussian, mode='same', boundary='wrap')
     sigma = convolved_resolution / 2.35482 #by definition, convolved_resolution = FWHM = 2 * sqrt(2 * ln(2)) * sigma = 2.35482 * sigma
-    sigma = sigma / 100 #to convert into um
+    sigma = sigma / 100 # to convert into um
     print("Sigma = ", sigma)
     convolved_zs = gaussian_filter(zs, sigma=sigma, mode='wrap')
     # Create a RegularGridInterpolator
@@ -93,19 +113,23 @@ def perform_interpolation(filename, csv_filename):
 
     )
     ]
-    print("Filtered Positions:")
-    print(filtered_positions_data)
+    #print("Filtered Positions:")
+    #print(filtered_positions_data)
 
     ## XXX: don't have `z` at the moment
     # Calculate contour levels for 95%, 90%, and 85% of the data
     zNonZero = df[df["z"] > 0.0]
     contour_levels = np.percentile(df["z"], [100-95,100-85,100-65]) #zs or z?
-    contour_levels_no_zeroes = np.percentile(zNonZero["z"], [5,15,35]) #zs or z? [68,85,95] [100-95,100-85,100-65]
+    contour_levels_no_zeroes = np.percentile(zNonZero["z"], [5,15,32]) #zs or z? [68,85,95] [100-95,100-85,100-65] [5,15,35])
+
+    contours_weighted = [weighted_percentile(zs, 5), weighted_percentile(zs, 15), weighted_percentile(zs, 32)]
+    print("weighted percentiles = ", contours_weighted)
+
     print("contour levels = ", contour_levels_no_zeroes)
    
     #Print the percentiles used in a text box    
-    percentile_values = [68, 85, 95]
-    text_box_content = "\n".join([f"{percentile:.0f}%: {level:.0f}" for percentile, level in zip(percentile_values, contour_levels_no_zeroes)])
+    percentile_values = [95, 85, 68]
+    text_box_content = "\n".join([f"{percentile:.0f}%: {level:.0f}" for percentile, level in zip(percentile_values, contours_weighted)])
 
     text_box = plt.text(0.95, 0.95, text_box_content, transform=plt.gca().transAxes,
                     verticalalignment='top', horizontalalignment='right',
@@ -139,7 +163,7 @@ def perform_interpolation(filename, csv_filename):
 
     # Plot contour lines for specified data percentages
     #plt.contour(X, Y, zzs, levels=contour_levels, colors='white')
-    plt.contour(X, Y, zzs, levels=contour_levels_no_zeroes, colors='white')
+    plt.contour(X, Y, zzs, levels=contours_weighted, colors='white')
 
     # Add the circle of calibration runs
     circle = plt.Circle((0, 0), 8.5, fill=False, edgecolor='white', linestyle='dashed', linewidth=1)
