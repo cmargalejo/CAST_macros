@@ -11,6 +11,35 @@ from scipy.ndimage import gaussian_filter
 #        (size, size)
 #    )
 #    return kernel / np.sum(kernel)
+def candidate_position_transformation(positions_data, x_min, x_max, y_min, y_max):
+    # Create specular image by negating x-coordinates
+    #specular_positions_data = np.copy(positions_data)
+    #specular_positions_data[:, 0] = -specular_positions_data[:, 0] #0 to negate x-coordinates (right-left) or 1 to negate y-coordinates (up-down)
+    df = positions_data
+    df["xs"] = -df["xs"]
+    # Rotate the positions by 0 degrees clockwise (up to the right)
+    angle_degrees = 45
+    xs = df["xs"]
+    ys = df["ys"]
+    df["xs"] = xs * np.cos(np.radians(angle_degrees))  + ys * np.sin(np.radians(angle_degrees))
+    df["ys"] = xs * -np.sin(np.radians(angle_degrees)) + ys * np.cos(np.radians(angle_degrees))
+    #rotated_positions_data = np.dot(specular_positions_data, np.array([[np.cos(np.radians(angle_degrees)), -np.sin(np.radians(angle_degrees))],
+    #                                                                   [np.sin(np.radians(angle_degrees)),  np.cos(np.radians(angle_degrees))]]))
+    # Move positions 1.5 mm to the right to align it with the X-ray finger simulationS
+    shift_distance = 1.5
+    #rotated_positions_data[:, 0] += shift_distance
+    df["xs"] = df["xs"] + shift_distance
+    # Filter out CSV values that are within the bounds using numpy functions, because we are working with numpy arrays
+    #filtered_positions_data = rotated_positions_data[
+    #    np.logical_and(
+    #        np.logical_and(x_min <= rotated_positions_data[:, 0], rotated_positions_data[:, 0] <= x_max),
+    #        np.logical_and(y_min <= rotated_positions_data[:, 1], rotated_positions_data[:, 1] <= y_max)
+    #)
+    #]
+    df = df[(df["xs"] > x_min) & (df["xs"] < x_max) & (df["ys"] > y_min) & (df["ys"] < y_max)]
+    return df
+    #print("Filtered Positions:")
+    #print(filtered_positions_data)
 
 def weighted_percentile(matrix, q):
     values = matrix.flatten()
@@ -102,27 +131,9 @@ def perform_interpolation(filename, csv_filename, isAxion = False):
     plt.imshow(zzs.T, extent=(x_min, x_max, y_min, y_max), origin = "lower")
 
     # Read teh candidate positions (x, y) from the CSV file
-    positions_data = np.genfromtxt(csv_filename, delimiter=',', skip_header=1, usecols=(0, 1))
-    # Create specular image by negating x-coordinates
-    specular_positions_data = np.copy(positions_data)
-    specular_positions_data[:, 0] = -specular_positions_data[:, 0] #0 to negate x-coordinates (right-left) or 1 to negate y-coordinates (up-down)
-    # Rotate the positions by 0 degrees clockwise (up to the right)
-    angle_degrees = 45
-    rotated_positions_data = np.dot(specular_positions_data, np.array([[np.cos(np.radians(angle_degrees)), -np.sin(np.radians(angle_degrees))],
-                                                           [np.sin(np.radians(angle_degrees)), np.cos(np.radians(angle_degrees))]]))
-    # Move positions 1.5 mm to the right to align it with the X-ray finger simulationS
-    shift_distance = 1.5
-    rotated_positions_data[:, 0] += shift_distance
-    # Filter out CSV values that are within the bounds using numpy functions, because we are working with numpy arrays
-    filtered_positions_data = rotated_positions_data[
-        np.logical_and(
-            np.logical_and(x_min <= rotated_positions_data[:, 0], rotated_positions_data[:, 0] <= x_max),
-            np.logical_and(y_min <= rotated_positions_data[:, 1], rotated_positions_data[:, 1] <= y_max)
-
-    )
-    ]
-    #print("Filtered Positions:")
-    #print(filtered_positions_data)
+    #positions_data = np.genfromtxt(csv_filename, delimiter=',', skip_header=1, usecols=(0, 1))
+    positions_data = pd.read_csv(csv_filename)
+    filtered_positions_data = candidate_position_transformation(positions_data, x_min, x_max, y_min, y_max)
 
     ## XXX: don't have `z` at the moment
     # Calculate contour levels for 95%, 90%, and 85% of the data
@@ -155,15 +166,18 @@ def perform_interpolation(filename, csv_filename, isAxion = False):
 
     plt.colorbar(label='Interpolated Value')
     plt.scatter(
-        [pos[0] for pos in filtered_positions_data],
-        [pos[1] for pos in filtered_positions_data],
+        filtered_positions_data["xs"], 
+        filtered_positions_data["ys"],
+        #[pos[0] for pos in filtered_positions_data],
+        #[pos[1] for pos in filtered_positions_data],
         c='red', marker='x', label='Filtered CSV File Positions'
     )
     ## Interpolate each cluster and directly annotate
-    for i, pos in enumerate(filtered_positions_data):
-        interpolated_value = interp_func(pos)
+    for i, pos in filtered_positions_data.iterrows():
+        print(pos)
+        interpolated_value = interp_func([pos["xs"], pos["ys"]])
         print(pos, " = ", interpolated_value)
-        plt.annotate(f"{interpolated_value[0]:.2f}", pos, textcoords="offset points", xytext=(10,5), ha='center', fontsize=8, color='red')
+        plt.annotate(f"{interpolated_value[0]:.2f}", [pos["xs"], pos["ys"]], textcoords="offset points", xytext=(10,5), ha='center', fontsize=8, color='red')
 
     plt.xlabel('x (mm)')
     plt.ylabel('y (mm)')
@@ -179,7 +193,7 @@ def perform_interpolation(filename, csv_filename, isAxion = False):
     plt.gca().add_artist(circle)
 
     fname = "clusters_tests.pdf" if not isAxion else "clusters_tests_axion.pdf"
-    plt.savefig("clusters_tests.pdf")
+    plt.savefig(fname)
     plt.show()
 
 
