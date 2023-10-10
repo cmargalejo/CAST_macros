@@ -31,14 +31,19 @@ def weighted_percentile(matrix, q):
 
     return sorted_values[index]
 
-def perform_interpolation(filename, csv_filename):
+def perform_interpolation(filename, csv_filename, isAxion = False):
     # Read the text file using Pandas
-    df = pd.read_csv(filename, skiprows = 2, delim_whitespace = True, names = ["x", "y", "z"])
-    # Compute normalized data. Using *MEAN* of *DATA*
-    #df["x"] = df["x"] - df["x"].mean() + 1.3
-    #df["y"] = df["y"] - df["y"].mean() + 0.025
-    df["x"] = df["x"] - 30
-    df["y"] = df["y"] - 30
+    df = None
+    if isAxion:
+        df = pd.read_csv(filename, skiprows = 1, delim_whitespace = True, names = ["x", "y", "z", "zMean"])
+        # Compute normalized data. Using *MEAN* of *DATA*
+        df["x"] = df["x"] - df["x"].mean() + 1.3 #because the mean is 31.3, but I have to move it only 30 mm
+        df["y"] = df["y"] - df["y"].mean() + 0.025 #because the mean is 30.25, but I have to move it only 30 mm
+    else:
+        df = pd.read_csv(filename, skiprows = 2, delim_whitespace = True, names = ["x", "y", "z"])
+        df["x"] = df["x"] - 30.0
+        df["y"] = df["y"] - 30.0
+    print(df)
     # Sort data by *X* then *Y*
     df = df.sort_values(by = ["x", "y"], ascending = True)
     # Number of elements per axis
@@ -96,7 +101,7 @@ def perform_interpolation(filename, csv_filename):
     #plt.imshow(zzs.T, extent=(x_min, x_max, y_min, y_max), origin = "lower", vmax = 300)
     plt.imshow(zzs.T, extent=(x_min, x_max, y_min, y_max), origin = "lower")
 
-    # Read positions (x, y) from the CSV file
+    # Read teh candidate positions (x, y) from the CSV file
     positions_data = np.genfromtxt(csv_filename, delimiter=',', skip_header=1, usecols=(0, 1))
     # Create specular image by negating x-coordinates
     specular_positions_data = np.copy(positions_data)
@@ -105,6 +110,9 @@ def perform_interpolation(filename, csv_filename):
     angle_degrees = 45
     rotated_positions_data = np.dot(specular_positions_data, np.array([[np.cos(np.radians(angle_degrees)), -np.sin(np.radians(angle_degrees))],
                                                            [np.sin(np.radians(angle_degrees)), np.cos(np.radians(angle_degrees))]]))
+    # Move positions 1.5 mm to the right to align it with the X-ray finger simulationS
+    shift_distance = 1.5
+    rotated_positions_data[:, 0] += shift_distance
     # Filter out CSV values that are within the bounds using numpy functions, because we are working with numpy arrays
     filtered_positions_data = rotated_positions_data[
         np.logical_and(
@@ -119,17 +127,18 @@ def perform_interpolation(filename, csv_filename):
     ## XXX: don't have `z` at the moment
     # Calculate contour levels for 95%, 90%, and 85% of the data
     zNonZero = df[df["z"] > 0.0]
-    contour_levels = np.percentile(df["z"], [100-95,100-85,100-65]) #zs or z?
-    contour_levels_no_zeroes = np.percentile(zNonZero["z"], [5,15,32]) #zs or z? [68,85,95] [100-95,100-85,100-65] [5,15,35])
-
-    contours_weighted = [weighted_percentile(zs, 5), weighted_percentile(zs, 15), weighted_percentile(zs, 32)]
+    #contour_levels = np.percentile(df["z"], [100-95,100-85,100-65]) #zs or z?
+    #contour_levels_no_zeroes = np.percentile(zNonZero["z"], [5,15,32]) #zs or z? [68,85,95] [100-95,100-85,100-65] [5,15,35])
+    contours = [99, 95, 85, 68]
+    contours_weighted = []
+    # For loop below equivalent to:
+    # contours_weighted = [weighted_percentile(zs, 5), weighted_percentile(zs, 15), weighted_percentile(zs, 32)]
+    for c in contours:
+        contours_weighted.append(weighted_percentile(zs, 100 - c))
     print("weighted percentiles = ", contours_weighted)
-
-    print("contour levels = ", contour_levels_no_zeroes)
    
     #Print the percentiles used in a text box    
-    percentile_values = [95, 85, 68]
-    text_box_content = "\n".join([f"{percentile:.0f}%: {level:.0f}" for percentile, level in zip(percentile_values, contours_weighted)])
+    text_box_content = "\n".join([f"{percentile:.0f}%: {level:.0f}" for percentile, level in zip(contours, contours_weighted)])
 
     text_box = plt.text(0.95, 0.95, text_box_content, transform=plt.gca().transAxes,
                     verticalalignment='top', horizontalalignment='right',
@@ -169,6 +178,7 @@ def perform_interpolation(filename, csv_filename):
     circle = plt.Circle((0, 0), 8.5, fill=False, edgecolor='white', linestyle='dashed', linewidth=1)
     plt.gca().add_artist(circle)
 
+    fname = "clusters_tests.pdf" if not isAxion else "clusters_tests_axion.pdf"
     plt.savefig("clusters_tests.pdf")
     plt.show()
 
@@ -176,10 +186,11 @@ def perform_interpolation(filename, csv_filename):
 # Call the function with your file names
 #map_filename = '/home/cristina/GitHub/CAST_macros/limitCalculation/data/Jaime_data/2016_DEC_Final_CAST_XRT/3.00keV_2Dmap.txt'
 map_filename = '/home/cristina/GitHub/CAST_macros/limitCalculation/data/Jaime_data/2016_DEC_Final_CAST_XRT/3.00keV_2Dmap_CoolX.txt'
+axion_image_filename = '/home/cristina/GitHub/CAST_macros/limitCalculation/data/llnl_raytracing_Jaime_all_energies.txt'
 csv_filename = 'data/cluster_candidates_tracking.csv'
 convolved_resolution = 500  # Desired convolved spatial resolution (FWHM) in um (microns) is convolved_resolution FWHM = 2 * sqrt(2 * ln(2)) * sigma    
                             # 500 microns is equivalent to a physical resolution of 200 microns, Why? If FWHM=500 um, sigma=2.12*100 = 212 um. In other words, in the zs matrix, if sigma=2
                             # it means we use 2 indices in each direction to blur the image (better said, 2 indices are within the 1 sigma region, but it uses more indices).
                             # Each index is 0.1mm away so 2 indices is 0.2mm or 200 microns.
-perform_interpolation(map_filename, csv_filename)
-
+perform_interpolation(axion_image_filename, csv_filename, isAxion = True)
+perform_interpolation(map_filename, csv_filename, isAxion = False)
