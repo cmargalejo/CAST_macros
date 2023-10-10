@@ -41,6 +41,40 @@ SoftwareEfficiencyAr1 = np.array([0.65, 0.68,   0.77,     0.71,   0.79,   0.74])
 SoftwareEfficiencyAr2 = np.array([0.62, 0.79,   0.75,     0.68,   0.79,   0.71])
 SoftwareEfficiencyXe = np.array([0.80, 0.94,   0.84,     0.81,   0.88,   0.87])
 
+axion_image_filename = '/home/cristina/GitHub/CAST_macros/limitCalculation/data/llnl_raytracing_Jaime_all_energies.txt'
+
+def setupAxionImageInterpolator(filename, convolved_resolution):
+    # Read the text file using Pandas
+    df = pd.read_csv(filename, skiprows = 1, delim_whitespace = True, names = ["x", "y", "z", "zMean"])
+    # Compute normalized data. Using *MEAN* of *DATA*
+    df["x"] = df["x"] - df["x"].mean() + 1.3 #because the mean is 31.3, but I have to move it only 30 mm
+    df["y"] = df["y"] - df["y"].mean() + 0.025 #because the mean is 30.25, but I have to move it only 30 mm
+    # Sort data by *X* then *Y*
+    df = df.sort_values(by = ["x", "y"], ascending = True)
+    # Number of elements per axis
+    size = int(np.sqrt(len(df)))
+    # get unique elements
+    unique_x = pd.unique(df["x"])
+    unique_y = pd.unique(df["y"])
+    # Construct array for interpolation
+    zs = np.zeros([size, size])
+    zSum = np.sum(df["z"])
+    areaPerPixel = 0.05 * 0.05 # strip pitch in cm, final units in cm^2
+    for x in range(size):
+        for y in range(size):
+            ## Important: First entries are `x`, second `y`. "Matrix" convention, i.e.
+            ## first index is *row*, not column!
+            z = df["z"][x * size + y] 
+            zs[x, y] = (z / zSum / areaPerPixel) # Sorted by `x` first, hence `x` changes
+                                             # *after* y.
+    # Convolve the data with a Gaussian kernel
+    #sigma = convolved_resolution / 2.35482 #by definition, convolved_resolution = FWHM = 2 * sqrt(2 * ln(2)) * sigma = 2.35482 * sigma
+    #sigma = sigma / 100 # to convert into um
+    #print("Sigma = ", sigma)
+    #convolved_zs = gaussian_filter(zs, sigma=sigma, mode='wrap')
+    # Create a RegularGridInterpolator
+    return RegularGridInterpolator((unique_x, unique_y), zs, method='linear', bounds_error = False, fill_value = 0.0) #linear, nearest
+
 def candidate_position_transformation(positions_data, x_min, x_max, y_min, y_max):
     # Create specular image by negating x-coordinates
     df = positions_data
@@ -60,7 +94,7 @@ def candidate_position_transformation(positions_data, x_min, x_max, y_min, y_max
 
 # Step 1: Define a Dataset Class
 class Dataset:
-    def __init__(self, background, software_efficiency, detector_efficiency, total_time, candidates_csv, energies, energies_software, name):
+    def __init__(self, background, software_efficiency, detector_efficiency, total_time, candidates_csv, energies, energies_software, name, axion_image):
         self.background = background
         self.software_efficiency = software_efficiency
         self.detector_efficiency = detector_efficiency
@@ -75,6 +109,7 @@ class Dataset:
         dfDetector = pd.read_csv(detector_efficiency)
         self.lerpDetector = interp1d(dfDetector["Photon energy [keV]"], dfDetector["Efficiency"], bounds_error = False, fill_value = 0.0)
         self.name = name
+        self.axion_image_weights = setupAxionImageInterpolator(axion_image, 500)
 
 # Initializing the three Dataset instances
 
@@ -88,7 +123,8 @@ dataset_Ar1 = Dataset(
     candidates_csv="data/bg_df_candidates_Ar1.csv",
     energies=Energies,
     energies_software=EnergiesSoftware,
-    name="Ar1"
+    name="Ar1",
+    axion_image = axion_image_filename
 )
 
 # Argon dataset 2
@@ -100,7 +136,8 @@ dataset_Ar2 = Dataset(
     candidates_csv="data/bg_df_candidates_Ar2.csv",
     energies=Energies,
     energies_software=EnergiesSoftware,
-    name="Ar2"
+    name="Ar2",
+    axion_image = axion_image_filename
 )
 
 # Xe dataset
@@ -112,7 +149,8 @@ dataset_Xe = Dataset(
     candidates_csv="data/bg_df_candidates_Xe.csv",
     energies=Energies,
     energies_software=EnergiesSoftware,
-    name="Xe"
+    name="Xe",
+    axion_image = axion_image_filename
 )
 
 
@@ -177,6 +215,9 @@ def softwareEff(dataset, E):
 def detectorEff(dataset, E):
     return dataset.lerpDetector(E)
 
+def candidate_weights(dataset, x, y):
+    return dataset.axion_image_weights([x, y])
+
 def totalSignal(dataset, g_aγ4):
     ## Flux integrated to total time, energy and area in counts of X-rays.
     # 1. integrate the solar flux
@@ -194,10 +235,10 @@ def totalSignal(dataset, g_aγ4):
 ## NOTE: only important that signal and background have the same units!
 # It gives the amount of signal in counts keV⁻¹ expected for each channel.
 # In this case channels are energy bins, so correspond to energy E.
-def signal(dataset, E, g_aγ4): # in counts keV⁻¹
+def signal(dataset, E, g_aγ4, x, y): # in counts keV⁻¹
     ## Returns the axion flux based on `g` and energy `E`
     #print("Solar axion flux = ", solarAxionFlux(E), ", area of bore = ", areaBore, ", conversion probability = ", conversionProbability(), ", telescope eff = ", telescopeEff(E), ", detector eff = ", detectorEff(dataset, E), ", software eff = ", softwareEff(dataset, E), "gag = ", g_aγ4)
-    return solarAxionFlux(E) * dataset.total_time * areaBore * conversionProbability() * telescopeEff(E) * detectorEff(dataset, E) * softwareEff(dataset, E) * g_aγ4 #be careful because this area is that of the bore, not the spot on the readout
+    return solarAxionFlux(E) * dataset.total_time * areaBore * conversionProbability() * telescopeEff(E) * detectorEff(dataset, E) * softwareEff(dataset, E) * g_aγ4 * candidate_weights(dataset, x, y) #be careful because this area is that of the bore, not the spot on the readout
 
 def background(dataset, E):
     ## For the unbinned approach, I need to compute an interpolation of energies and background.    
@@ -215,10 +256,15 @@ def totalBackground(dataset):
 
 def likelihood(dataset, g_aγ4) -> float:
     result = np.exp(-(totalSignal(dataset, g_aγ4)+totalBackground(dataset))) #e^(-(s_tot + b_tot))
-    cEnergies = dataset.candidates["Es"] # this will have to be modified when we have the position
+    cEnergies = np.array(dataset.candidates["Es"]) # this will have to be modified when we have the position
+    candidate_pos_x = np.array(dataset.candidates["xs"])
+    candidate_pos_y = np.array(dataset.candidates["ys"])
     idx = 0
-    for E in cEnergies: # column names in df are xs, ys, Es
-        s = signal(dataset, E, g_aγ4)
+    for candidate in range(len(cEnergies)): # column names in df are xs, ys, Es
+        E = cEnergies[candidate]
+        x = candidate_pos_x[candidate]
+        y = candidate_pos_y[candidate]
+        s = signal(dataset, E, g_aγ4, x, y)
         b = background(dataset, E)
         result *= s+b    
         #if result < 0.0:
@@ -230,9 +276,14 @@ def likelihood(dataset, g_aγ4) -> float:
 def likelihood2(dataset, g_aγ4) -> float: # Basti's version based on the division of Poissonian probabilities
     result = np.exp(-(totalSignal(dataset, g_aγ4))) #e^(-(s_tot ))
     #print("Total signal result = ", result)
-    cEnergies = dataset.candidates["Es"] # this will have to be modified when we have the position
-    for E in cEnergies: # column names in df are xs, ys, Es
-        s = signal(dataset, E, g_aγ4)
+    cEnergies = np.array(dataset.candidates["Es"]) # this will have to be modified when we have the position
+    candidate_pos_x = np.array(dataset.candidates["xs"])
+    candidate_pos_y = np.array(dataset.candidates["ys"])
+    for candidate in range(len(cEnergies)): # column names in df are xs, ys, Es
+        E = cEnergies[candidate]
+        x = candidate_pos_x[candidate]
+        y = candidate_pos_y[candidate]
+        s = signal(dataset, E, g_aγ4, x, y)
         b = background(dataset, E)
         result *= (1.0 + s/b)
         #print("result ", result, " for candidate energy ", E, "background = ", b, " and signal = ", s)
