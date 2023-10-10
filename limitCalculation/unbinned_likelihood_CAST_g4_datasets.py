@@ -9,44 +9,30 @@ from bisect import bisect_left
 import scipy.integrate as sc # simpson numerical integration routine
 
 
-# Step 1: Define a Dataset Class
-class Dataset:
-    def __init__(self, background, software_efficiency, detector_efficiency, total_time, candidates_csv, energies, energies_software, name):
-        self.background = background
-        self.software_efficiency = software_efficiency
-        self.detector_efficiency = detector_efficiency
-        self.total_time = total_time * 60 * 60
-        self.candidates = pd.read_csv(candidates_csv)
-        self.energies_software = energies_software
-        self.energies = energies
-        self.lerpBackground = interp1d(energies, background, bounds_error = False, fill_value = "extrapolate") 
-        dfDetector = pd.read_csv(detector_efficiency)
-        self.lerpDetector = interp1d(dfDetector["Photon energy [keV]"], dfDetector["Efficiency"], bounds_error = False, fill_value = 0.0)
-        self.name = name
-# Example of initializing a Dataset instance (using existing Background array and CSV file as placeholders):
-# dataset_example = Dataset(Background, SoftwareEfficiencyAr1, ... , totalTime, "data/cluster_candidates_tracking.csv")
-
-# Note: We'll need the specific arrays and values for other datasets to initialize them.
-
 #These are real data as of 14th july 2023
 #totalTime = 337.0 * 60 * 60 # 337 h of "tracking time"
 areaBore = math.pi * (2.15 * 2.15) # cm² because bore diameter is 4.3 cm
-chipArea = 0.16*np.pi #0.16*np.pi #36 # in cm^2. I assume all flux is focused into a circular area of radius 4 mm. Thus pi*r^2= pi* 0.4^2 cm² on the detector. Relevant area for background!
+x_min = -10.0 # in mm
+x_max = 10.0
+y_min = -10.0
+y_max = 10.0
+#chipArea = 4 #0.16*np.pi #36 # in cm^2. I assume all flux is focused into a circular area of radius 4 mm. Thus pi*r^2= pi* 0.4^2 cm² on the detector. Relevant area for background!
+chipArea = (x_max - x_min) * (y_max - y_min) / 100.0 # in cm
+print("area= ", chipArea)
 
 Energies = np.array([0.0, 0.5, 1.5, 2.5, 3.5, 4.5, 5.5, 6.5, 7.5, 8.5, 9.5, 10.0]) # Energy of the center of each bin in keV
 # we add energy 0 and 10 for two reasons: one, to get the correct total background via integral. And two, to get more reasonable values from the interpolation,
 # because sometimes we were getting negative values for the background on one end because we were relying on extrapolation.
 #Background = np.array([3.19e-8, 8.92e-7, 2.74e-6, 2.58e-6, 1.70e-6, 1.74e-6, 1.72e-6, 3.06e-6, 6.07e-6, 3.42e-6]) # for R = 10 mm converted to a rate in keV⁻¹cm⁻²s⁻¹
 #BackgroundAr1 = np.array([0, 0, 1.75e-6, 1.97e-6, 1.75e-6, 1.53e-6, 1.53e-6, 1.31e-6, 2.62e-6, 6.55e-6, 2.62e-6, 2.62e-6]) # for R = 4 mm wrong?
-BackgroundAr1 = np.array([0, 1.7856E-06, 1.116E-06, 1.7856E-06, 1.5624E-06, 1.3392E-06, 1.3392E-06, 2.4552E-06, 5.3568E-06, 1.116E-06, 8.92801E-07, 6.69601E-07]) # for R = 4 mm
-#BackgroundAr1 = np.array([3.5712E-08, 6.42817E-07, 2.64269E-06, 1.89274E-06, 1.35706E-06, 1.28563E-06, 1.24992E-06, 2.24986E-06, 4.53543E-06, 1.64275E-06, 7.49953E-07, 6.42817E-07]) # for R = 10 mm
-#These are dummy backgrounds!!!
+#BackgroundAr1 = np.array([0, 1.7856E-06, 1.116E-06, 1.7856E-06, 1.5624E-06, 1.3392E-06, 1.3392E-06, 2.4552E-06, 5.3568E-06, 1.116E-06, 8.92801E-07, 6.69601E-07]) # for R = 4 mm
+BackgroundAr1 = np.array([3.5712E-08, 6.42817E-07, 2.64269E-06, 1.89274E-06, 1.35706E-06, 1.28563E-06, 1.24992E-06, 2.24986E-06, 4.53543E-06, 1.64275E-06, 7.49953E-07, 6.42817E-07]) # for R = 10 mm
 #BackgroundAr2 = np.array([0, 0, 1.75e-6, 1.97e-6, 1.75e-6, 1.53e-6, 1.53e-6, 1.31e-6, 2.62e-6, 6.55e-6, 2.62e-6, 2.62e-6]) # for R = 4 mm wrong?
-BackgroundAr2 = np.array([0, 0, 3.29448E-06, 6.58896E-06, 4.94172E-06, 1.64724E-06, 0, 0, 1.64724E-06, 3.29448E-06, 0, 3.29448E-06]) # for R = 4 mm
-#BackgroundAr2 = np.array([2.63558E-07	0	3.95337E-06	3.42626E-06	1.05423E-06	2.10847E-06	1.05423E-06	3.1627E-06	3.1627E-06	1.05423E-06	5.27117E-07	1.05423E-06]) # for R = 10 mm
+#BackgroundAr2 = np.array([0, 0, 3.29448E-06, 6.58896E-06, 4.94172E-06, 1.64724E-06, 0, 0, 1.64724E-06, 3.29448E-06, 0, 3.29448E-06]) # for R = 4 mm
+BackgroundAr2 = np.array([2.63558E-07, 0, 3.95337E-06, 3.42626E-06, 1.05423E-06, 2.10847E-06, 1.05423E-06, 3.1627E-06, 3.1627E-06, 1.05423E-06, 5.27117E-07, 1.05423E-06]) # for R = 10 mm
 #BackgroundXe = np.array([0, 0, 1.75e-6, 1.00e-6, 1.00e-6, 1.53e-6, 1.53e-6, 1.31e-6, 2.62e-6, 6.55e-6, 2.62e-6, 2.62e-6]) # for R = 4 mm wrong?
-BackgroundXe = np.array([0, 1.13234E-06, 1.45586E-06, 9.70575E-07, 1.45586E-06, 1.45586E-06, 1.2941E-06, 2.26468E-06, 4.20583E-06, 1.94115E-06, 1.45586E-06, 6.4705E-07]) # for R = 4 mm
-#BackgroundXe = np.array([0, 8.28224E-07, 1.55292E-06, 1.24234E-06, 1.60468E-06, 1.31998E-06, 1.44939E-06, 2.76937E-06, 4.94346E-06, 2.61408E-06, 1.8635E-06, 1.19057E-06, 2.13785E-05]) # for R = 10 mm
+#BackgroundXe = np.array([0, 1.13234E-06, 1.45586E-06, 9.70575E-07, 1.45586E-06, 1.45586E-06, 1.2941E-06, 2.26468E-06, 4.20583E-06, 1.94115E-06, 1.45586E-06, 6.4705E-07]) # for R = 4 mm
+BackgroundXe = np.array([0, 8.28224E-07, 1.55292E-06, 1.24234E-06, 1.60468E-06, 1.31998E-06, 1.44939E-06, 2.76937E-06, 4.94346E-06, 2.61408E-06, 1.8635E-06, 1.19057E-06]) # for R = 10 mm
 
 #Candidates = np.array([0,      2,      0,     0,      0,      0,       0,      2,    8,      0]) #number of candidates in each energy bin or channel
 #dfCandidates = pd.read_csv("data/cluster_candidates_tracking.csv")
@@ -54,6 +40,41 @@ EnergiesSoftware = np.array([1.75, 2.5,   3.75,    5.25,   7,   12]) #right edge
 SoftwareEfficiencyAr1 = np.array([0.65, 0.68,   0.77,     0.71,   0.79,   0.74])
 SoftwareEfficiencyAr2 = np.array([0.62, 0.79,   0.75,     0.68,   0.79,   0.71])
 SoftwareEfficiencyXe = np.array([0.80, 0.94,   0.84,     0.81,   0.88,   0.87])
+
+def candidate_position_transformation(positions_data, x_min, x_max, y_min, y_max):
+    # Create specular image by negating x-coordinates
+    df = positions_data
+    df["xs"] = -df["xs"]
+    # Rotate the positions by 0 degrees clockwise (up to the right)
+    angle_degrees = 45
+    xs = df["xs"]
+    ys = df["ys"]
+    df["xs"] = xs * np.cos(np.radians(angle_degrees))  + ys * np.sin(np.radians(angle_degrees))
+    df["ys"] = xs * -np.sin(np.radians(angle_degrees)) + ys * np.cos(np.radians(angle_degrees))
+    # Move positions 1.5 mm to the right to align it with the X-ray finger simulationS
+    shift_distance = 1.5
+    df["xs"] = df["xs"] + shift_distance
+    # Filter out CSV values that are within the bounds using numpy functions, because we are working with numpy arrays
+    df = df[(df["xs"] > x_min) & (df["xs"] < x_max) & (df["ys"] > y_min) & (df["ys"] < y_max)]
+    return df
+
+# Step 1: Define a Dataset Class
+class Dataset:
+    def __init__(self, background, software_efficiency, detector_efficiency, total_time, candidates_csv, energies, energies_software, name):
+        self.background = background
+        self.software_efficiency = software_efficiency
+        self.detector_efficiency = detector_efficiency
+        self.total_time = total_time * 60 * 60
+        df = pd.read_csv(candidates_csv)
+        print("Number of candidates total chip: ", len(df))
+        self.candidates = candidate_position_transformation(df, -10.0, 10.0, -10.0, 10.0) # these values define the area
+        print("Number of candidates in the inner 20x20mm: ", len(self.candidates))
+        self.energies_software = energies_software
+        self.energies = energies
+        self.lerpBackground = interp1d(energies, background, bounds_error = False, fill_value = "extrapolate") 
+        dfDetector = pd.read_csv(detector_efficiency)
+        self.lerpDetector = interp1d(dfDetector["Photon energy [keV]"], dfDetector["Efficiency"], bounds_error = False, fill_value = 0.0)
+        self.name = name
 
 # Initializing the three Dataset instances
 
@@ -175,8 +196,8 @@ def totalSignal(dataset, g_aγ4):
 # In this case channels are energy bins, so correspond to energy E.
 def signal(dataset, E, g_aγ4): # in counts keV⁻¹
     ## Returns the axion flux based on `g` and energy `E`
+    #print("Solar axion flux = ", solarAxionFlux(E), ", area of bore = ", areaBore, ", conversion probability = ", conversionProbability(), ", telescope eff = ", telescopeEff(E), ", detector eff = ", detectorEff(dataset, E), ", software eff = ", softwareEff(dataset, E), "gag = ", g_aγ4)
     return solarAxionFlux(E) * dataset.total_time * areaBore * conversionProbability() * telescopeEff(E) * detectorEff(dataset, E) * softwareEff(dataset, E) * g_aγ4 #be careful because this area is that of the bore, not the spot on the readout
-
 
 def background(dataset, E):
     ## For the unbinned approach, I need to compute an interpolation of energies and background.    
@@ -191,9 +212,6 @@ def totalBackground(dataset):
     energies = np.linspace(0.0,10.0,1000)
     backgrounds = background(dataset, energies) # gives an array of 1000 backg. rates
     return sc.simpson(backgrounds, energies)
-
-
-
 
 def likelihood(dataset, g_aγ4) -> float:
     result = np.exp(-(totalSignal(dataset, g_aγ4)+totalBackground(dataset))) #e^(-(s_tot + b_tot))
@@ -211,12 +229,13 @@ def likelihood(dataset, g_aγ4) -> float:
 
 def likelihood2(dataset, g_aγ4) -> float: # Basti's version based on the division of Poissonian probabilities
     result = np.exp(-(totalSignal(dataset, g_aγ4))) #e^(-(s_tot ))
+    #print("Total signal result = ", result)
     cEnergies = dataset.candidates["Es"] # this will have to be modified when we have the position
     for E in cEnergies: # column names in df are xs, ys, Es
         s = signal(dataset, E, g_aγ4)
         b = background(dataset, E)
         result *= (1.0 + s/b)
-        #print("result ", result, " for candidate energy ", E)
+        #print("result ", result, " for candidate energy ", E, "background = ", b, " and signal = ", s)
     
     return result
 
@@ -239,6 +258,7 @@ def limit(dataset, likelihoodFunction=likelihood):
 
 #Now we finally compute the limit
 for dataset in [dataset_Ar1, dataset_Ar2, dataset_Xe]:
+#for dataset in [dataset_Xe]:
     print(f"Total number of expected background counts via integral of {dataset.name} =  {totalBackground(dataset)}" )
     lim = limit(dataset, likelihood2)
     print(f"\033[1;35;40m Limit at : {pow(lim, 0.25)}\033[0m")
@@ -251,7 +271,7 @@ for dataset in [dataset_Ar1, dataset_Ar2, dataset_Xe]:
     #plt.savefig("ChiSquareg4_Nature_approach_unbinned.pdf")
     #plt.close()
 
-    g4Lin = np.linspace(0.0, 1e-38, 1000)
+    g4Lin = np.linspace(0.0, 5e-39, 1000)
     likelihoodLin = [likelihood2(dataset, g4) for g4 in g4Lin]
     plt.plot(g4Lin, likelihoodLin)
     plt.xlabel("Coupling constant (GeV$^-4$)")
