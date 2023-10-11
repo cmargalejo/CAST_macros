@@ -16,21 +16,19 @@ x_min = -10.0 # in mm
 x_max = 10.0
 y_min = -10.0
 y_max = 10.0
-#chipArea = 4 #0.16*np.pi #36 # in cm^2. I assume all flux is focused into a circular area of radius 4 mm. Thus pi*r^2= pi* 0.4^2 cm² on the detector. Relevant area for background!
-chipArea = (x_max - x_min) * (y_max - y_min) / 100.0 # in cm
-print("area= ", chipArea)
+readoutArea = 1**2 * np.pi #0.16*np.pi #36 # in cm^2. 
+# If I assume all flux is focused into a circular area of radius 4 mm. Thus pi*r^2= pi* 0.4^2 cm² on the detector. Relevant area for background!
+# Is I assume 10 mm radius, then area = pi * 1^2 cm^2  = pi cm^2
+#readoutArea = (x_max - x_min) * (y_max - y_min) / 100.0 # in cm
+#print("area= ", readoutArea)
 
 Energies = np.array([0.0, 0.5, 1.5, 2.5, 3.5, 4.5, 5.5, 6.5, 7.5, 8.5, 9.5, 10.0]) # Energy of the center of each bin in keV
 # we add energy 0 and 10 for two reasons: one, to get the correct total background via integral. And two, to get more reasonable values from the interpolation,
 # because sometimes we were getting negative values for the background on one end because we were relying on extrapolation.
-#Background = np.array([3.19e-8, 8.92e-7, 2.74e-6, 2.58e-6, 1.70e-6, 1.74e-6, 1.72e-6, 3.06e-6, 6.07e-6, 3.42e-6]) # for R = 10 mm converted to a rate in keV⁻¹cm⁻²s⁻¹
-#BackgroundAr1 = np.array([0, 0, 1.75e-6, 1.97e-6, 1.75e-6, 1.53e-6, 1.53e-6, 1.31e-6, 2.62e-6, 6.55e-6, 2.62e-6, 2.62e-6]) # for R = 4 mm wrong?
 #BackgroundAr1 = np.array([0, 1.7856E-06, 1.116E-06, 1.7856E-06, 1.5624E-06, 1.3392E-06, 1.3392E-06, 2.4552E-06, 5.3568E-06, 1.116E-06, 8.92801E-07, 6.69601E-07]) # for R = 4 mm
 BackgroundAr1 = np.array([3.5712E-08, 6.42817E-07, 2.64269E-06, 1.89274E-06, 1.35706E-06, 1.28563E-06, 1.24992E-06, 2.24986E-06, 4.53543E-06, 1.64275E-06, 7.49953E-07, 6.42817E-07]) # for R = 10 mm
-#BackgroundAr2 = np.array([0, 0, 1.75e-6, 1.97e-6, 1.75e-6, 1.53e-6, 1.53e-6, 1.31e-6, 2.62e-6, 6.55e-6, 2.62e-6, 2.62e-6]) # for R = 4 mm wrong?
 #BackgroundAr2 = np.array([0, 0, 3.29448E-06, 6.58896E-06, 4.94172E-06, 1.64724E-06, 0, 0, 1.64724E-06, 3.29448E-06, 0, 3.29448E-06]) # for R = 4 mm
 BackgroundAr2 = np.array([2.63558E-07, 0, 3.95337E-06, 3.42626E-06, 1.05423E-06, 2.10847E-06, 1.05423E-06, 3.1627E-06, 3.1627E-06, 1.05423E-06, 5.27117E-07, 1.05423E-06]) # for R = 10 mm
-#BackgroundXe = np.array([0, 0, 1.75e-6, 1.00e-6, 1.00e-6, 1.53e-6, 1.53e-6, 1.31e-6, 2.62e-6, 6.55e-6, 2.62e-6, 2.62e-6]) # for R = 4 mm wrong?
 #BackgroundXe = np.array([0, 1.13234E-06, 1.45586E-06, 9.70575E-07, 1.45586E-06, 1.45586E-06, 1.2941E-06, 2.26468E-06, 4.20583E-06, 1.94115E-06, 1.45586E-06, 6.4705E-07]) # for R = 4 mm
 BackgroundXe = np.array([0, 8.28224E-07, 1.55292E-06, 1.24234E-06, 1.60468E-06, 1.31998E-06, 1.44939E-06, 2.76937E-06, 4.94346E-06, 2.61408E-06, 1.8635E-06, 1.19057E-06]) # for R = 10 mm
 
@@ -88,8 +86,12 @@ def candidate_position_transformation(positions_data, x_min, x_max, y_min, y_max
     # Move positions 1.5 mm to the right to align it with the X-ray finger simulationS
     shift_distance = 1.5
     df["xs"] = df["xs"] + shift_distance
-    # Filter out CSV values that are within the bounds using numpy functions, because we are working with numpy arrays
-    df = df[(df["xs"] > x_min) & (df["xs"] < x_max) & (df["ys"] > y_min) & (df["ys"] < y_max)]
+    # Filter out CSV values that are within the wanted area. For a square:
+    #df = df[(df["xs"] > x_min) & (df["xs"] < x_max) & (df["ys"] > y_min) & (df["ys"] < y_max)]
+    # Filter out CSV values that are within the wanted area. For a circle:
+    df = df[(df["xs"] * df["xs"] + df["ys"] * df["ys"] < 100)] #100 ir radius^2
+    # Filter by energy
+    df = df[(df["Es"] < 10)] # Only events below 10 keV
     return df
 
 # Step 1: Define a Dataset Class
@@ -100,9 +102,9 @@ class Dataset:
         self.detector_efficiency = detector_efficiency
         self.total_time = total_time * 60 * 60
         df = pd.read_csv(candidates_csv)
-        print("Number of candidates total chip: ", len(df))
+        print("Number of candidates total readout area: ", len(df))
         self.candidates = candidate_position_transformation(df, -10.0, 10.0, -10.0, 10.0) # these values define the area
-        print("Number of candidates in the inner 20x20mm: ", len(self.candidates))
+        print("Number of candidates in the inner 10 mm radius circle: ", len(self.candidates))
         self.energies_software = energies_software
         self.energies = energies
         self.lerpBackground = interp1d(energies, background, bounds_error = False, fill_value = "extrapolate") 
@@ -245,9 +247,9 @@ def background(dataset, E):
     ## Note: area of interest is the region on the chip, in which the signal is focused!
     ## This also allows us to see that the "closer" we cut to the expected axion signal on the
     ## detector, the less background we have compared to the *fixed* signal flux!
-    #print("Background = ", (lerpBackground(E) * totalTime * chipArea))
-    return (dataset.lerpBackground(E) * dataset.total_time * chipArea) # in counts keV⁻¹  #be careful because this area is that of the spot on the readout, not the bore
-    #return (np.interp(E, Energies, Background) * totalTime * chipArea)
+    #print("Background = ", (lerpBackground(E) * totalTime * readoutArea))
+    return (dataset.lerpBackground(E) * dataset.total_time * readoutArea) # in counts keV⁻¹  #be careful because this area is that of the spot on the readout, not the bore
+    #return (np.interp(E, Energies, Background) * totalTime * readoutArea)
 
 def totalBackground(dataset):
     energies = np.linspace(0.0,10.0,1000)
@@ -291,14 +293,21 @@ def likelihood2(dataset, g_aγ4) -> float: # Basti's version based on the divisi
     return result
 
 def logLikelihood(dataset, g_aγ4: float):
-    return -np.log(likelihood(dataset, g_aγ4))  
-     
+    return -np.log(likelihood2(dataset, g_aγ4))  
+
+# Now we compute the combined likelihood, which is simply the product of the likelihood of each of the 3 datasets     
+def totalLikelihood(dataset1, dataset2, dataset3, g_aγ4, likelihoodFunction=likelihood) -> float:
+    likelihood_1 = likelihoodFunction(dataset1, g_aγ4)
+    likelihood_2 = likelihoodFunction(dataset2, g_aγ4)
+    likelihood_3 = likelihoodFunction(dataset3, g_aγ4)
+    
+    return likelihood_1 * likelihood_2 * likelihood_3
 
 # Now we are going to write a function to compute a limit.
 def limit(dataset, likelihoodFunction=likelihood):
     # Compute limit, CDF@95%
     # limit needs non logspace x & y data! (at least if computed in this simple way)
-    g4Lin = np.linspace(0.0, 1e-40, 1000)
+    g4Lin = np.linspace(0.0, 5e-40, 1000)
     likelihoodLin = [likelihoodFunction(dataset, g4) for g4 in g4Lin]
     LCumSum = np.cumsum(likelihoodLin)          # cumulative sum
     LMax = LCumSum.max()               # maximum of the cumulative sum
@@ -307,7 +316,20 @@ def limit(dataset, likelihoodFunction=likelihood):
 
     return g4Lin[limitIdx]
 
-#Now we finally compute the limit
+# And now we write a fucntion to compute the combined limit
+def totalLimit(dataset1, dataset2, dataset3, likelihoodFunction=likelihood):
+    # Compute limit, CDF@95%
+    # limit needs non logspace x & y data! (at least if computed in this simple way)
+    g4Lin = np.linspace(0.0, 1e-40, 1000)
+    likelihoodLin = [totalLikelihood(dataset1, dataset2, dataset3, g4, likelihoodFunction) for g4 in g4Lin]
+    LCumSum = np.cumsum(likelihoodLin)          # cumulative sum
+    LMax = LCumSum.max()               # maximum of the cumulative sum
+    LCdf = LCumSum / LMax              # normalize to get (empirical) CDF
+    limitIdx = bisect_left(LCdf, 0.95) # limit at 95% of the CDF
+
+    return g4Lin[limitIdx]
+
+#Now we finally compute the limit for each dataset
 for dataset in [dataset_Ar1, dataset_Ar2, dataset_Xe]:
 #for dataset in [dataset_Xe]:
     print(f"Total number of expected background counts via integral of {dataset.name} =  {totalBackground(dataset)}" )
@@ -322,13 +344,44 @@ for dataset in [dataset_Ar1, dataset_Ar2, dataset_Xe]:
     #plt.savefig("ChiSquareg4_Nature_approach_unbinned.pdf")
     #plt.close()
 
-    g4Lin = np.linspace(0.0, 5e-39, 1000)
+    g4Lin = np.linspace(0.0, 5e-40, 1000)
     likelihoodLin = [likelihood2(dataset, g4) for g4 in g4Lin]
     plt.plot(g4Lin, likelihoodLin)
     plt.xlabel("Coupling constant (GeV$^-4$)")
     plt.ylabel("Likelihood")
     #plt.xscale('log')
     #plt.show()
-    #plt.axvline(x=lim, color='r')
+    plt.axvline(x=lim, color='r')
     plt.savefig(f"energy_bins_likelihood_g4_unbinned_{dataset.name}.pdf")
     plt.close()
+
+    g_aγs = np.linspace(-1e-41, 1e-41, 1000)
+    logL2 = [logLikelihood(dataset, g_aγ) for g_aγ in g_aγs]
+    plt.plot(g_aγs, logL2)
+    plt.xlabel(' $g_{aγ}^4$ (GeV$^{-4}$)')
+    plt.ylabel('-log L or Chi$^2/2$')
+    plt.savefig(f"ChiSquareg4_Nature_approach_{dataset.name}.pdf")
+    plt.close()
+
+# And now we compute the total likelihood and limit
+totalLim = totalLimit(dataset_Ar1, dataset_Ar2, dataset_Xe, likelihood2)
+print(f"\033[1;35;40m Combined limit at : {pow(totalLim, 0.25)}\033[0m")
+
+g4Lin = np.linspace(0.0, 1e-40, 1000)
+likelihoodLin = [totalLikelihood(dataset_Ar1, dataset_Ar2, dataset_Xe, g4, likelihood2) for g4 in g4Lin]
+plt.plot(g4Lin, likelihoodLin)
+plt.xlabel("Coupling constant (GeV$^-4$)")
+plt.ylabel("Likelihood")
+#plt.xscale('log')
+#plt.show()
+plt.axvline(x=totalLim, color='r')
+plt.savefig(f"energy_bins_likelihood_g4_unbinned_all_datasets.pdf")
+plt.close()
+
+g_aγs = np.linspace(-4e-41, 4e-41, 1000)
+logL2 = [totalLikelihood(dataset_Ar1, dataset_Ar2, dataset_Xe, g_aγ, logLikelihood) for g_aγ in g_aγs]
+plt.plot(g_aγs, logL2)
+plt.xlabel(' $g_{aγ}^4$ (GeV$^{-4}$)')
+plt.ylabel('-log L or Chi$^2/2$')
+plt.savefig(f"ChiSquareg4_Nature_approach_all_datasets.pdf")
+plt.close()
