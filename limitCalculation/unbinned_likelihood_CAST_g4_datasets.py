@@ -242,6 +242,7 @@ def signal(dataset, E, g_aγ4, x, y): # in counts keV⁻¹
     #print("Solar axion flux = ", solarAxionFlux(E), ", area of bore = ", areaBore, ", conversion probability = ", conversionProbability(), ", telescope eff = ", telescopeEff(E), ", detector eff = ", detectorEff(dataset, E), ", software eff = ", softwareEff(dataset, E), "gag = ", g_aγ4)
     return solarAxionFlux(E) * dataset.total_time * areaBore * conversionProbability() * telescopeEff(E) * detectorEff(dataset, E) * softwareEff(dataset, E) * g_aγ4 * candidate_weights(dataset, x, y) #be careful because this area is that of the bore, not the spot on the readout
 
+
 def background(dataset, E):
     ## For the unbinned approach, I need to compute an interpolation of energies and background.    
     ## Note: area of interest is the region on the chip, in which the signal is focused!
@@ -385,3 +386,100 @@ plt.xlabel(' $g_{aγ}^4$ (GeV$^{-4}$)')
 plt.ylabel('-log L or Chi$^2/2$')
 plt.savefig(f"ChiSquareg4_Nature_approach_all_datasets.pdf")
 plt.close()
+
+# I plot all the likelihoods together
+# Combining the plotting commands to make a single plot with all the curves
+# Define the datasets
+datasets = [dataset_Ar1, dataset_Ar2, dataset_Xe]
+# Plotting the likelihood for each individual dataset
+for dataset in datasets:
+    g4Lin_individual = np.linspace(0.0, 5e-40, 1000)
+    likelihoodLin_individual = [likelihood2(dataset, g4) for g4 in g4Lin_individual]
+    plt.plot(g4Lin_individual, likelihoodLin_individual, label=f"{dataset.name}")
+    lim_individual = limit(dataset, likelihood2)
+    plt.axvline(x=lim_individual, linestyle='--', color='grey')
+# Plotting the total likelihood for all datasets combined
+g4Lin_total = np.linspace(0.0, 5e-40, 1000)
+likelihoodLin_total = [totalLikelihood(dataset_Ar1, dataset_Ar2, dataset_Xe, g4, likelihood2) for g4 in g4Lin_total]
+plt.plot(g4Lin_total, likelihoodLin_total, label='All Datasets Combined', color='black', linewidth=3)
+plt.axvline(x=totalLim, color='r', linewidth=2)
+
+# Adding labels, title, legend, and saving the plot
+plt.xlabel("Coupling constant (GeV$^-4$)")
+plt.ylabel("Likelihood")
+plt.title("Likelihood vs. Coupling Constant for Different Datasets")
+plt.legend(loc='upper right')
+plt.tight_layout()
+plt.savefig("combined_likelihood_plot.pdf")
+#plt.show()
+
+
+
+
+# conversion probability plot
+g_aγ = np.linspace(1e-13, 1e-10, 1000)
+plt.plot(g_aγ, conversionProbability()*(g_aγ**2)) # I multiply by g^2 because in the function I had excluded it by dividing it out.
+plt.xlabel("$g_{aγ}$ (GeV⁻¹)")
+plt.ylabel("Conversion probability")
+#plt.title("Conversion Probability vs g_aγ")
+plt.savefig("ConversionProbability.pdf")
+plt.close()
+
+#Primakoff solar axion flux
+E = np.linspace(0, 10, 200)
+g_aγ = 1e-10
+solarAxionFlux_values = np.array([solarAxionFlux(e) for e in E])
+plt.plot(E, solarAxionFlux_values*(g_aγ**2))
+plt.xlabel('Energy (keV)')
+plt.ylabel('Solar axion flux for $g_{a\gamma}·10^{-10}$ (keV⁻¹ cm⁻² s⁻¹)')
+plt.savefig("SolarAxionPrimakoffFlux.pdf")
+plt.close()
+
+solarAxionFlux2019_values = np.array([solarAxionFlux2019(e) for e in E])
+plt.plot(E, solarAxionFlux2019_values*(g_aγ**2))
+plt.xlabel('Energy (keV)')
+plt.ylabel('Solar axion flux 2019 for $g_{a\gamma}·10^{-10}$ (keV⁻¹ cm⁻² s⁻¹)')
+plt.savefig("SolarAxionPrimakoffFlux2019.pdf")
+plt.close()
+
+# Plotting both fluxes in one figure
+plt.figure(figsize=(10, 6))
+plt.plot(E, solarAxionFlux_values*(g_aγ**2), label='Solar axion flux for $g_{a\gamma}·10^{-10}$')
+plt.plot(E, solarAxionFlux2019_values*(g_aγ**2), label='Solar axion flux 2019 for $g_{a\gamma}·10^{-10}$', linestyle='--')
+# Labels, title, and legend
+plt.xlabel('Energy (keV)')
+plt.ylabel('Solar axion flux (keV⁻¹ cm⁻² s⁻¹)')
+plt.title('Comparison of Solar Axion Fluxes')
+plt.legend()
+# Save and show the plot
+plt.tight_layout()
+plt.savefig("CombinedSolarAxionFlux.pdf")
+plt.show()
+
+# Telescope efficiency
+plt.plot(dfTel["Energy[keV]"], dfTel["Efficiency"])
+plt.xlabel("Energy (keV)")
+plt.ylabel("Efficiency")
+plt.savefig("telescopeEfficiency.pdf")
+plt.close()
+""" 
+# My signal, which is the expected solar axion flux corrected by my efficiencies
+g_aγ4 = 1e-40
+signal_values = [signal(dataset, e, g_aγ4, x, y) for e in E]
+plt.plot(E, signal_values)
+plt.xlabel('Energy (keV)')
+plt.ylabel('Received solar axion flux (keV⁻¹cm⁻²s⁻¹)')
+plt.savefig("SolarAxionTheoreticalSignalFlux.pdf")
+plt.close()
+
+# Total signal
+g_aγ4 = np.linspace(1e-52, 1e-40, 1000)
+totalSignal_values = [totalSignal(g4) for g4 in g_aγ4]
+plt.plot(g_aγ4, totalSignal_values)
+plt.xlabel('$g_{aγ}^4$ (GeV$^{-4}$)')
+plt.ylabel('Total signal (counts)')
+plt.savefig("TotalSignal.pdf")
+plt.close()
+
+
+ """
