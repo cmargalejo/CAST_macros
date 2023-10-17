@@ -135,6 +135,9 @@ def perform_interpolation(filename, csv_filename, isAxion = False):
     positions_data = pd.read_csv(csv_filename)
     filtered_positions_data = candidate_position_transformation(positions_data, x_min, x_max, y_min, y_max)
 
+    calibration_data = pd.read_csv(calibration_filename)
+    filtered_calibration_data = candidate_position_transformation(calibration_data, x_min, x_max, y_min, y_max)
+
     ## XXX: don't have `z` at the moment
     # Calculate contour levels for 95%, 90%, and 85% of the data
     zNonZero = df[df["z"] > 0.0]
@@ -202,9 +205,11 @@ def perform_interpolation(filename, csv_filename, isAxion = False):
 map_filename = '/home/cristina/GitHub/CAST_macros/limitCalculation/data/Jaime_data/2016_DEC_Final_CAST_XRT/3.00keV_2Dmap_CoolX.txt'
 axion_image_filename = '/home/cristina/GitHub/CAST_macros/limitCalculation/data/llnl_raytracing_Jaime_all_energies.txt'
 csv_filename = 'data/cluster_candidates_tracking.csv'
+calibration_filename = 'data/R00649_centers_filtered.csv'
 convolved_resolution = 500  # Desired convolved spatial resolution (FWHM) in um (microns) is convolved_resolution FWHM = 2 * sqrt(2 * ln(2)) * sigma    
                             # 500 microns is equivalent to a physical resolution of 200 microns, Why? If FWHM=500 um, sigma=2.12*100 = 212 um. In other words, in the zs matrix, if sigma=2
                             # it means we use 2 indices in each direction to blur the image (better said, 2 indices are within the 1 sigma region, but it uses more indices).
                             # Each index is 0.1mm away so 2 indices is 0.2mm or 200 microns.
 perform_interpolation(axion_image_filename, csv_filename, isAxion = True)
 perform_interpolation(map_filename, csv_filename, isAxion = False)
+perform_interpolation(map_filename, calibration_filename, isAxion = False)
