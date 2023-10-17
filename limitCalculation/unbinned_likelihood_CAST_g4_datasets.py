@@ -184,17 +184,19 @@ def conversionProbability():
     L = 9.26 * 5.06773e+06 # resulting units in eV^-1
     return (1 / 10**9 * B * L / 2.0) ** 2 # divided by 10**9 to convert from GeV^-1 to eV^-1
 
-
 # Here, dfTel and lerpTel are global variables that are defined independently of the function telescopeEff.
 # So they are only done once, and then used inside the function if this is called.
 # This csv file assumes parallel light. But in our case whe get light from the solar core, which is about 3 arcmin,
 # so the efficiency is lower, like in the paper of 2013.
-dfTel = pd.read_csv("data/llnl_xray_telescope_cast_effective_area_parallel_light_DTU_thesis.csv")
-dfTel["Efficiency"] = dfTel["EffectiveArea[cm²]"] / areaBore * (8.174 / 10.15) # The numbers scale the parallel light effective area to the CAST JCAP 2015 effective area
+#dfTel = pd.read_csv("data/llnl_xray_telescope_cast_effective_area_parallel_light_DTU_thesis.csv")
+#dfTel["Efficiency"] = dfTel["EffectiveArea[cm²]"] / areaBore * (8.174 / 10.15) # The numbers scale the parallel light effective area to the CAST JCAP 2015 effective area
+dfTel = pd.read_csv("data/Jaime_data/2016_DEC_Final_CAST_XRT/EffectiveArea.txt", delim_whitespace = True)
+dfTel["Efficiency"] = dfTel["Area(cm^2)"] / areaBore
 #print(dfTel)
-lerpTel = interp1d(dfTel["Energy[keV]"], dfTel["Efficiency"], bounds_error = False, fill_value = 0.0)
+lerpTel = interp1d(dfTel["E(keV)"], dfTel["Efficiency"], bounds_error = False, fill_value = 0.0)
 def telescopeEff(E):
     return lerpTel(E)
+
 
 # Including the software efficiency by interpolation
 #lerpSoftEffAr1 = interp1d(EnergiesSoftware, SoftwareEfficiencyAr1, bounds_error = False, fill_value = 0.0)
