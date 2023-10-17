@@ -39,9 +39,10 @@ SoftwareEfficiencyAr1 = np.array([0.65, 0.68,   0.77,     0.71,   0.79,   0.74])
 SoftwareEfficiencyAr2 = np.array([0.62, 0.79,   0.75,     0.68,   0.79,   0.71])
 SoftwareEfficiencyXe = np.array([0.80, 0.94,   0.84,     0.81,   0.88,   0.87])
 
-axion_image_filename = '/home/cristina/GitHub/CAST_macros/limitCalculation/data/llnl_raytracing_Jaime_all_energies.txt'
+#axion_image_filename = '/home/cristina/GitHub/CAST_macros/limitCalculation/data/llnl_raytracing_Jaime_all_energies.txt'
+axion_image_filename = '/home/cris/src/GitHub/CAST_macros/limitCalculation/data/llnl_raytracing_Jaime_all_energies.txt'
 
-def setupAxionImageInterpolator(filename, convolved_resolution):
+def setupAxionImageInterpolator(filename, convolved_resolution): #I should check individually that this sums up to 1, by computing the
     # Read the text file using Pandas
     df = pd.read_csv(filename, skiprows = 1, delim_whitespace = True, names = ["x", "y", "z", "zMean"])
     # Compute normalized data. Using *MEAN* of *DATA*
@@ -79,8 +80,8 @@ def candidate_position_transformation(positions_data, x_min, x_max, y_min, y_max
     df["xs"] = -df["xs"]
     # Rotate the positions by 0 degrees clockwise (up to the right)
     angle_degrees = 45
-    xs = df["xs"]
-    ys = df["ys"]
+    xs = df["xs"].copy()
+    ys = df["ys"].copy()
     df["xs"] = xs * np.cos(np.radians(angle_degrees))  + ys * np.sin(np.radians(angle_degrees))
     df["ys"] = xs * -np.sin(np.radians(angle_degrees)) + ys * np.cos(np.radians(angle_degrees))
     # Move positions 1.5 mm to the right to align it with the X-ray finger simulationS
@@ -89,7 +90,7 @@ def candidate_position_transformation(positions_data, x_min, x_max, y_min, y_max
     # Filter out CSV values that are within the wanted area. For a square:
     #df = df[(df["xs"] > x_min) & (df["xs"] < x_max) & (df["ys"] > y_min) & (df["ys"] < y_max)]
     # Filter out CSV values that are within the wanted area. For a circle:
-    df = df[(df["xs"] * df["xs"] + df["ys"] * df["ys"] < 100)] #100 ir radius^2
+    df = df[(df["xs"] * df["xs"] + df["ys"] * df["ys"] < 100.0)] #100 ir radius^2
     # Filter by energy
     df = df[(df["Es"] < 10)] # Only events below 10 keV
     return df
@@ -219,8 +220,23 @@ def softwareEff(dataset, E):
 def detectorEff(dataset, E):
     return dataset.lerpDetector(E)
 
-def candidate_weights(dataset, x, y):
+#maybe ranme the function to position_weight. Because it can be used to compute the weight at any position, not only candidates.
+def candidate_weights(dataset, x, y): # in a separate file, load this code and makw checks like in here: https://github.com/Vindaar/TimepixAnalysis/blob/master/Analysis/ingrid/mcmc_limit_calculation.nim#L4005-L4118
+    # In particular using axion_image_weights from setupAxionImageInterpolator I should make sure the weights sum up to 1.
     return dataset.axion_image_weights([x, y])
+    """
+    #quick not-working example. Because the sum of all the results in the function candidates_weights over every position on my readout
+    #should be 1, becasue the weight is the fraction of solar flux that arrives to that position.
+    # chip edge and number is up to you.
+   xs = np.linspace(-chip edge, chip edge, 100)
+    ys = np.linspace(-chip edge, chip edge, 100
+    sizeOfBlock = chipArea / (100 * 100)
+    sum = 0
+    for x in xs:
+    for y in ys:
+        sum += sizeOfBlock * candidate_weights(x, y) # candidate_weights returns counts / cm²
+    assert(abs(sum - 1.0) < 1e-6)
+    """
 
 def totalSignal(dataset, g_aγ4):
     ## Flux integrated to total time, energy and area in counts of X-rays.
@@ -298,6 +314,46 @@ def likelihood2(dataset, g_aγ4) -> float: # Basti's version based on the divisi
 def logLikelihood(dataset, g_aγ4: float):
     return -np.log(likelihood2(dataset, g_aγ4))  
 
+def logLikelihood2(dataset, g_aγ4) -> float: # Basti's version based on the division of Poissonian probabilities
+    result = (-(totalSignal(dataset, g_aγ4))) #(-(s_tot ))
+    #print("Total signal result = ", result)
+    cEnergies = np.array(dataset.candidates["Es"]) # this will have to be modified when we have the position
+    candidate_pos_x = np.array(dataset.candidates["xs"])
+    candidate_pos_y = np.array(dataset.candidates["ys"])
+    for candidate in range(len(cEnergies)): # column names in df are xs, ys, Es
+        E = cEnergies[candidate]
+        x = candidate_pos_x[candidate]
+        y = candidate_pos_y[candidate]
+        s = signal(dataset, E, g_aγ4, x, y)
+        b = background(dataset, E)
+        result += np.log(1.0 + s/b)
+        #print("result ", result, " for candidate energy ", E, "background = ", b, " and signal = ", s)
+    return -result
+
+#def logLikelihoodIgor(dataset, g_aγ4: float):
+#    result =
+def minusLogLikelihoodIgor(dataset, g_aγ4) -> float:
+    result = (totalSignal(dataset, g_aγ4)+totalBackground(dataset)) #(s_tot + b_tot) are theoretical values
+    cEnergies = np.array(dataset.candidates["Es"]) # this will have to be modified when we have the position
+    candidate_pos_x = np.array(dataset.candidates["xs"])
+    candidate_pos_y = np.array(dataset.candidates["ys"])
+    idx = 0
+    for candidate in range(len(cEnergies)): # column names in df are xs, ys, Es
+        E = cEnergies[candidate]
+        x = candidate_pos_x[candidate]
+        y = candidate_pos_y[candidate]
+        s = signal(dataset, E, g_aγ4, x, y) #this is s*f_s. The total signal would be s: ∫ s·f_s dx = totalSignal
+        b = background(dataset, E)
+        result -= np.log(s+b) #in the book it is +, but it is a typo.
+        #if result < 0.0:
+        #    print("got less 0 ", result, " from ", s, " and ", b, " at ", E, " idx ", idx)
+        #    quit()
+        idx += 1
+    return result
+
+def likelihoodIgor(dataset, g_aγ4) -> float:
+    return np.exp(-minusLogLikelihoodIgor(dataset, g_aγ4))
+
 # Now we compute the combined likelihood, which is simply the product of the likelihood of each of the 3 datasets     
 def totalLikelihood(dataset1, dataset2, dataset3, g_aγ4, likelihoodFunction=likelihood) -> float:
     likelihood_1 = likelihoodFunction(dataset1, g_aγ4)
@@ -336,7 +392,7 @@ def totalLimit(dataset1, dataset2, dataset3, likelihoodFunction=likelihood):
 for dataset in [dataset_Ar1, dataset_Ar2, dataset_Xe]:
 #for dataset in [dataset_Xe]:
     print(f"Total number of expected background counts via integral of {dataset.name} =  {totalBackground(dataset)}" )
-    lim = limit(dataset, likelihood2)
+    lim = limit(dataset, likelihoodIgor)
     print(f"\033[1;35;40m Limit at : {pow(lim, 0.25)}\033[0m")
 
     #g_aγs = np.linspace(-1e-40, 1e-40, 1000)
@@ -348,14 +404,14 @@ for dataset in [dataset_Ar1, dataset_Ar2, dataset_Xe]:
     #plt.close()
 
     g4Lin = np.linspace(0.0, 5e-40, 1000)
-    likelihoodLin = [likelihood2(dataset, g4) for g4 in g4Lin]
+    likelihoodLin = [likelihoodIgor(dataset, g4) for g4 in g4Lin]
     plt.plot(g4Lin, likelihoodLin)
     plt.xlabel("Coupling constant (GeV$^-4$)")
     plt.ylabel("Likelihood")
     #plt.xscale('log')
     #plt.show()
     plt.axvline(x=lim, color='r')
-    plt.savefig(f"energy_bins_likelihood_g4_unbinned_{dataset.name}.pdf")
+    plt.savefig(f"energy_bins_likelihood_Igor_g4_unbinned_{dataset.name}.pdf")
     plt.close()
 
     g_aγs = np.linspace(-1e-41, 1e-41, 1000)
@@ -381,13 +437,14 @@ plt.axvline(x=totalLim, color='r')
 plt.savefig(f"energy_bins_likelihood_g4_unbinned_all_datasets.pdf")
 plt.close()
 
-g_aγs = np.linspace(-4e-41, 4e-41, 1000)
-logL2 = [totalLikelihood(dataset_Ar1, dataset_Ar2, dataset_Xe, g_aγ, logLikelihood) for g_aγ in g_aγs]
+g_aγs = np.linspace(-0.3e-39, 0.55e-39, 1000)
+logL2 = [totalLikelihood(dataset_Ar1, dataset_Ar2, dataset_Xe, g_aγ, minusLogLikelihoodIgor) for g_aγ in g_aγs]
 plt.plot(g_aγs, logL2)
 plt.xlabel(' $g_{aγ}^4$ (GeV$^{-4}$)')
 plt.ylabel('-log L or Chi$^2/2$')
-plt.savefig(f"ChiSquareg4_Nature_approach_all_datasets.pdf")
+plt.savefig(f"ChiSquareg4_Nature_approach_all_datasets_zoom.pdf")
 plt.close()
+#plt.savefig(f"ChiSquareg4_Nature_approach_all_datasets.pdf")
 
 # I plot all the likelihoods together
 # Combining the plotting commands to make a single plot with all the curves
@@ -414,8 +471,6 @@ plt.legend(loc='upper right')
 plt.tight_layout()
 plt.savefig("combined_likelihood_plot.pdf")
 #plt.show()
-
-
 
 
 # conversion probability plot
@@ -485,3 +540,4 @@ plt.close()
 
 
  """
+
