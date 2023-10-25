@@ -25,8 +25,9 @@ def candidate_position_transformation(positions_data, x_min, x_max, y_min, y_max
     df["ys"] = xs * -np.sin(np.radians(angle_degrees)) + ys * np.cos(np.radians(angle_degrees))
     #rotated_positions_data = np.dot(specular_positions_data, np.array([[np.cos(np.radians(angle_degrees)), -np.sin(np.radians(angle_degrees))],
     #                                                                   [np.sin(np.radians(angle_degrees)),  np.cos(np.radians(angle_degrees))]]))
-    # Move positions 1.5 mm to the right to align it with the X-ray finger simulationS
-    shift_distance = 1.5
+    # Move positions 1.5 mm to the right to align it with the X-ray finger simulations
+    # If I use the centroid values above in setupAxionImageInterpolator(), the shift should be 0.0 mm
+    shift_distance = 0.0
     #rotated_positions_data[:, 0] += shift_distance
     df["xs"] = df["xs"] + shift_distance
     # Filter out CSV values that are within the bounds using numpy functions, because we are working with numpy arrays
@@ -66,13 +67,19 @@ def perform_interpolation(filename, csv_filename, isAxion = False):
     if isAxion:
         df = pd.read_csv(filename, skiprows = 1, delim_whitespace = True, names = ["x", "y", "z", "zMean"])
         # Compute normalized data. Using *MEAN* of *DATA*
-        df["x"] = df["x"] - df["x"].mean() + 1.3 #because the mean is 31.3, but I have to move it only 30 mm
-        df["y"] = df["y"] - df["y"].mean() + 0.025 #because the mean is 30.25, but I have to move it only 30 mm
+        #print("Mean x = ", df["x"].mean())
+        #print("Mean y = ", df["y"].mean())
+        #df["x"] = df["x"] - df["x"].mean() + 1.3 #because the mean is 31.3, but I have to move it only 30 mm
+        #df["y"] = df["y"] - df["y"].mean() + 0.025 #because the mean is 30.25, but I have to move it only 30 mm
+        df["x"] = df["x"] - 31.139 # 31.139 these are the values of the centroid that match it with the position of the X-ray finger centroid. But df is already -30, so I only put the difference.
+        df["y"] = df["y"] - 29.79 # 29.79 these are the values of the centroid that match it with the position of the X-ray finger centroid. But df is already -30, so I only put the difference.
     else:
         df = pd.read_csv(filename, skiprows = 2, delim_whitespace = True, names = ["x", "y", "z"])
-        df["x"] = df["x"] - 30.0
-        df["y"] = df["y"] - 30.0
-    print(df)
+        #df["x"] = df["x"] - 30.0
+        #df["y"] = df["y"] - 30.0
+        df["x"] = df["x"] - 31.139 # these are the values of the centroid that match it with the position of the X-ray finger cetnroid
+        df["y"] = df["y"] - 29.76 # these are the values of the centroid that match it with the position of the X-ray finger cetnroid
+    #print(df)
     # Sort data by *X* then *Y*
     df = df.sort_values(by = ["x", "y"], ascending = True)
     # Number of elements per axis
@@ -200,7 +207,8 @@ def perform_interpolation(filename, csv_filename, isAxion = False):
 # Call the function with your file names
 #map_filename = '/home/cristina/GitHub/CAST_macros/limitCalculation/data/Jaime_data/2016_DEC_Final_CAST_XRT/3.00keV_2Dmap.txt'
 map_filename = '/home/cristina/GitHub/CAST_macros/limitCalculation/data/Jaime_data/2016_DEC_Final_CAST_XRT/3.00keV_2Dmap_CoolX.txt'
-axion_image_filename = '/home/cristina/GitHub/CAST_macros/limitCalculation/data/llnl_raytracing_Jaime_all_energies.txt'
+#axion_image_filename = '/home/cristina/GitHub/CAST_macros/limitCalculation/data/llnl_raytracing_Jaime_all_energies.txt' # this one has the mean subtracted
+axion_image_filename = '/home/cristina/GitHub/CAST_macros/limitCalculation/data/llnl_raytracing_Jaime_all_energies_raw_sum.txt'
 csv_filename = 'data/cluster_candidates_tracking.csv'
 convolved_resolution = 500  # Desired convolved spatial resolution (FWHM) in um (microns) is convolved_resolution FWHM = 2 * sqrt(2 * ln(2)) * sigma    
                             # 500 microns is equivalent to a physical resolution of 200 microns, Why? If FWHM=500 um, sigma=2.12*100 = 212 um. In other words, in the zs matrix, if sigma=2
