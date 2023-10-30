@@ -41,7 +41,7 @@ SoftwareEfficiencyXe = np.array([0.80, 0.94,   0.84,     0.81,   0.88,   0.87])
 
 #axion_image_filename = '/home/cristina/GitHub/CAST_macros/limitCalculation/data/llnl_raytracing_Jaime_all_energies.txt'
 #axion_image_filename = '/home/cris/src/GitHub/CAST_macros/limitCalculation/data/llnl_raytracing_Jaime_all_energies.txt'
-axion_image_filename = 'data/llnl_raytracing_Jaime_all_energies.txt'
+axion_image_filename = 'data/llnl_raytracing_Jaime_all_energies_raw_sum.txt'
 
 def setupAxionImageInterpolator(filename, convolved_resolution): #I should check individually that this sums up to 1, by computing the
     # Read the text file using Pandas
@@ -58,16 +58,17 @@ def setupAxionImageInterpolator(filename, convolved_resolution): #I should check
     # get unique elements
     unique_x = pd.unique(df["x"])
     unique_y = pd.unique(df["y"])
+    #print("unique x = ", unique_x, "unique y = ", unique_y)
     # Construct array for interpolation
     zs = np.zeros([size, size])
     zSum = np.sum(df["z"])
-    areaPerPixel = 0.05 * 0.05 # strip pitch in cm, final units in cm^2
+    areaPerPixel = 0.01 * 0.01 # strip pitch in cm, final units in cm^2. But in the .txt file I have data every 0.1 mm
     for x in range(size):
         for y in range(size):
             ## Important: First entries are `x`, second `y`. "Matrix" convention, i.e.
             ## first index is *row*, not column!
             z = df["z"][x * size + y] 
-            zs[x, y] = (z / zSum / areaPerPixel) # Sorted by `x` first, hence `x` changes
+            zs[x, y] = (z / zSum / areaPerPixel) # Sorted by `x` first, hence `x` changes NORMALIZATION TO 1 if we cover the entire readout
                                              # *after* y.
     # Convolve the data with a Gaussian kernel
     #sigma = convolved_resolution / 2.35482 #by definition, convolved_resolution = FWHM = 2 * sqrt(2 * ln(2)) * sigma = 2.35482 * sigma
@@ -77,7 +78,7 @@ def setupAxionImageInterpolator(filename, convolved_resolution): #I should check
     # Create a RegularGridInterpolator
     return RegularGridInterpolator((unique_x, unique_y), zs, method='linear', bounds_error = False, fill_value = 0.0) #linear, nearest
 
-def candidate_position_transformation(positions_data, x_min, x_max, y_min, y_max):
+def candidate_position_transformation(positions_data, x_min, x_max, y_min, y_max, radius):
     # Create specular image by negating x-coordinates
     df = positions_data
     df["xs"] = -df["xs"]
@@ -92,9 +93,9 @@ def candidate_position_transformation(positions_data, x_min, x_max, y_min, y_max
     shift_distance = 0.0
     df["xs"] = df["xs"] + shift_distance
     # Filter out CSV values that are within the wanted area. For a square:
-    #df = df[(df["xs"] > x_min) & (df["xs"] < x_max) & (df["ys"] > y_min) & (df["ys"] < y_max)]
+    #df = df[(df["xs"] > x_min) & (df["xs"] < x_max) & (df["ys"] > y_min) & (df["ys"] < y_max)] # rectangle
     # Filter out CSV values that are within the wanted area. For a circle:
-    df = df[(df["xs"] * df["xs"] + df["ys"] * df["ys"] < 100.0)] #100 ir radius^2
+    df = df[(df["xs"] * df["xs"] + df["ys"] * df["ys"] < radius*radius)] #100 ir radius^2
     # Filter by energy
     df = df[(df["Es"] < 10)] # Only events below 10 keV
     return df
@@ -108,7 +109,7 @@ class Dataset:
         self.total_time = total_time * 60 * 60
         df = pd.read_csv(candidates_csv)
         print("Number of candidates total readout area: ", len(df))
-        self.candidates = candidate_position_transformation(df, -10.0, 10.0, -10.0, 10.0) # these values define the area
+        self.candidates = candidate_position_transformation(df, -10.0, 10.0, -10.0, 10.0, radius=10.0) # these values define the area
         print("Number of candidates in the inner 10 mm radius circle: ", len(self.candidates))
         self.energies_software = energies_software
         self.energies = energies
@@ -182,7 +183,7 @@ def solarAxionFlux2019(E: float) -> float:
 
 
 def conversionProbability():
-    # the conversion probability in the CAST magnet ( does not depend on g_aγ esxplicitly because we have taken it out to be able to raise it
+    # the conversion probability in the CAST magnet ( does not depend on g_aγ explicitly because we have taken it out to be able to raise it
     # later to the power of 4 without turning it >0)
     # simplified vacuum conversion prob. for small masses
     B = 9.0 * 195.353 #to convert into natural units. I need the factor 195.353 and the resulting units for B turn into eV^2. See tesla_conversion.nim
@@ -225,7 +226,7 @@ def detectorEff(dataset, E):
     return dataset.lerpDetector(E)
 
 #maybe ranme the function to position_weight. Because it can be used to compute the weight at any position, not only candidates.
-def candidate_weights(dataset, x, y): # in a separate file, load this code and makw checks like in here: https://github.com/Vindaar/TimepixAnalysis/blob/master/Analysis/ingrid/mcmc_limit_calculation.nim#L4005-L4118
+def candidate_weights(dataset, x, y): # in a separate file, load this code and make checks like in here: https://github.com/Vindaar/TimepixAnalysis/blob/master/Analysis/ingrid/mcmc_limit_calculation.nim#L4005-L4118
     # In particular using axion_image_weights from setupAxionImageInterpolator I should make sure the weights sum up to 1.
     return dataset.axion_image_weights([x, y])
     """
@@ -259,9 +260,9 @@ def totalSignal(dataset, g_aγ4):
 ## NOTE: only important that signal and background have the same units!
 # It gives the amount of signal in counts keV⁻¹ expected for each channel.
 # In this case channels are energy bins, so correspond to energy E.
-def signal(dataset, E, g_aγ4, x, y): # in counts keV⁻¹
+def signal(dataset, E, g_aγ4, x, y): # in counts keV⁻¹ cm^-2
     ## Returns the axion flux based on `g` and energy `E`
-    #print("Solar axion flux = ", solarAxionFlux(E), ", area of bore = ", areaBore, ", conversion probability = ", conversionProbability(), ", telescope eff = ", telescopeEff(E), ", detector eff = ", detectorEff(dataset, E), ", software eff = ", softwareEff(dataset, E), "gag = ", g_aγ4)
+    #print("Solar axion flux = ", solarAxionFlux(E), ", area of bore = ", areaBore, ", conversion probability = ", conversionProbability(), ", telescope eff = ", telescopeEff(E), ", detector eff = ", detectorEff(dataset, E), ", software eff = ", softwareEff(dataset, E), "gag = ", g_aγ4, "candidate weights = ", candidate_weights(dataset, x, y))
     return solarAxionFlux(E) * dataset.total_time * areaBore * conversionProbability() * telescopeEff(E) * detectorEff(dataset, E) * softwareEff(dataset, E) * g_aγ4 * candidate_weights(dataset, x, y) #be careful because this area is that of the bore, not the spot on the readout
 
 
@@ -271,7 +272,8 @@ def background(dataset, E):
     ## This also allows us to see that the "closer" we cut to the expected axion signal on the
     ## detector, the less background we have compared to the *fixed* signal flux!
     #print("Background = ", (lerpBackground(E) * totalTime * readoutArea))
-    return (dataset.lerpBackground(E) * dataset.total_time * readoutArea) # in counts keV⁻¹  #be careful because this area is that of the spot on the readout, not the bore
+    #return (dataset.lerpBackground(E) * dataset.total_time * readoutArea) # in counts keV⁻¹  #be careful because this area is that of the spot on the readout, not the bore
+    return (dataset.lerpBackground(E) * dataset.total_time) # in counts keV⁻¹ cm^-2
     #return (np.interp(E, Energies, Background) * totalTime * readoutArea)
 
 def totalBackground(dataset):
@@ -300,7 +302,7 @@ def likelihood(dataset, g_aγ4) -> float:
 
 def likelihood2(dataset, g_aγ4) -> float: # Basti's version based on the division of Poissonian probabilities
     result = np.exp(-(totalSignal(dataset, g_aγ4))) #e^(-(s_tot ))
-    #print("Total signal result = ", result)
+    print("Total signal result = ", result)
     cEnergies = np.array(dataset.candidates["Es"]) # this will have to be modified when we have the position
     candidate_pos_x = np.array(dataset.candidates["xs"])
     candidate_pos_y = np.array(dataset.candidates["ys"])
@@ -337,11 +339,12 @@ def logLikelihoodBasti(dataset, g_aγ4) -> float: # Basti's version based on the
     return -result
 
 def minusLogLikelihoodIgor(dataset, g_aγ4) -> float:
-    result = (totalSignal(dataset, g_aγ4)+totalBackground(dataset)) #(s_tot + b_tot) are theoretical values
+    result = (totalSignal(dataset, g_aγ4)+totalBackground(dataset)) #(s_tot + b_tot) are theoretical values >0
     cEnergies = np.array(dataset.candidates["Es"]) # this will have to be modified when we have the position
     candidate_pos_x = np.array(dataset.candidates["xs"])
     candidate_pos_y = np.array(dataset.candidates["ys"])
     idx = 0
+    #print("before for loop: ", result)
     for candidate in range(len(cEnergies)): # column names in df are xs, ys, Es
         E = cEnergies[candidate]
         x = candidate_pos_x[candidate]
@@ -353,6 +356,7 @@ def minusLogLikelihoodIgor(dataset, g_aγ4) -> float:
         #    print("got less 0 ", result, " from ", s, " and ", b, " at ", E, " idx ", idx)
         #    quit()
         idx += 1
+    #print("After for loop: ", result)
     return result
 
 def likelihoodIgor(dataset, g_aγ4) -> float:
@@ -365,6 +369,14 @@ def totalLikelihood(dataset1, dataset2, dataset3, g_aγ4, likelihoodFunction=lik
     likelihood_3 = likelihoodFunction(dataset3, g_aγ4)
     
     return likelihood_1 * likelihood_2 * likelihood_3
+
+# Now we compute the combined log likelihood, which is simply the sum of the chi^2 of each of the 3 datasets     
+def totalLogLikelihood(dataset1, dataset2, dataset3, g_aγ4, logLikelihoodFunction) -> float:
+    logLikelihood_1 = logLikelihoodFunction(dataset1, g_aγ4)
+    logLikelihood_2 = logLikelihoodFunction(dataset2, g_aγ4)
+    logLikelihood_3 = logLikelihoodFunction(dataset3, g_aγ4)
+    
+    return logLikelihood_1 + logLikelihood_2 + logLikelihood_3
 
 # Now we are going to write a function to compute a limit.
 def limit(dataset, likelihoodFunction=likelihood):
@@ -392,230 +404,239 @@ def totalLimit(dataset1, dataset2, dataset3, likelihoodFunction=likelihood):
 
     return g4Lin[limitIdx]
 
-#Now we finally compute the limit for each dataset
-for dataset in [dataset_Ar1, dataset_Ar2, dataset_Xe]:
-#for dataset in [dataset_Xe]:
-    print(f"Total number of expected background counts via integral of {dataset.name} =  {totalBackground(dataset)}" )
-    lim = limit(dataset, likelihood)
-    print(f"\033[1;35;40m Limit likelihood at : {pow(lim, 0.25)}\033[0m")
 
-    print(f"Total number of expected background counts via integral of {dataset.name} =  {totalBackground(dataset)}" )
-    lim = limit(dataset, likelihood2)
-    print(f"\033[1;35;40m Limit likelihood 2 at : {pow(lim, 0.25)}\033[0m")
+def main():
+    print(likelihood2(dataset_Xe, -1e-38))
+    print(likelihood2(dataset_Xe, 0))
+    print(likelihood2(dataset_Xe, 1e-38))
+    #if True: quit()
 
-    print(f"Total number of expected background counts via integral of {dataset.name} =  {totalBackground(dataset)}" )
-    lim = limit(dataset, likelihoodIgor)
-    print(f"\033[1;35;40m Limit Igor at : {pow(lim, 0.25)}\033[0m")
+    #Now we finally compute the limit for each dataset
+    for dataset in [dataset_Ar1, dataset_Ar2, dataset_Xe]:
+    #for dataset in [dataset_Xe]:
+        print(f"Total number of expected background counts via integral of {dataset.name} =  {totalBackground(dataset)}" )
+        lim = limit(dataset, likelihood)
+        print(f"\033[1;35;40m Limit likelihood at : {pow(lim, 0.25)}\033[0m")
 
-    #g_aγs = np.linspace(-1e-40, 1e-40, 1000)
-    #logL = [logLikelihood(g_aγ, dfCandidates) for g_aγ in g_aγs]
-    #plt.plot(g_aγs, logL)
-    #plt.xlabel(' $g_{aγ}^4$ (GeV$^{-4}$)')
-    #plt.ylabel('-log L or Chi$^2/2$')
-    #plt.savefig("ChiSquareg4_Nature_approach_unbinned.pdf")
-    #plt.close()
-"""
-    g4Lin = np.linspace(0.0, 5e-40, 1000)
-    likelihoodLin = [likelihoodIgor(dataset, g4) for g4 in g4Lin]
+        print(f"Total number of expected background counts via integral of {dataset.name} =  {totalBackground(dataset)}" )
+        lim = limit(dataset, likelihood2)
+        print(f"\033[1;35;40m Limit likelihood 2 at : {pow(lim, 0.25)}\033[0m")
+
+        print(f"Total number of expected background counts via integral of {dataset.name} =  {totalBackground(dataset)}" )
+        lim = limit(dataset, likelihoodIgor)
+        print(f"\033[1;35;40m Limit Igor at : {pow(lim, 0.25)}\033[0m")
+
+        #g_aγs = np.linspace(-1e-40, 1e-40, 1000)
+        #logL = [logLikelihood(g_aγ, dfCandidates) for g_aγ in g_aγs]
+        #plt.plot(g_aγs, logL)
+        #plt.xlabel(' $g_{aγ}^4$ (GeV$^{-4}$)')
+        #plt.ylabel('-log L or Chi$^2/2$')
+        #plt.savefig("ChiSquareg4_Nature_approach_unbinned.pdf")
+        #plt.close()
+    """
+        g4Lin = np.linspace(0.0, 5e-40, 1000)
+        likelihoodLin = [likelihoodIgor(dataset, g4) for g4 in g4Lin]
+        plt.plot(g4Lin, likelihoodLin)
+        plt.xlabel("Coupling constant (GeV$^-4$)")
+        plt.ylabel("Likelihood")
+        #plt.xscale('log')
+        #plt.show()
+        plt.axvline(x=lim, color='r')
+        plt.savefig(f"energy_bins_likelihood_Igor_g4_unbinned_{dataset.name}.pdf")
+        plt.close()
+
+        g_aγs = np.linspace(-1e-41, 1e-41, 1000)
+        logL2 = [logLikelihood(dataset, g_aγ) for g_aγ in g_aγs]
+        plt.plot(g_aγs, logL2)
+        plt.xlabel(' $g_{aγ}^4$ (GeV$^{-4}$)')
+        plt.ylabel('-log L or Chi$^2/2$')
+        plt.savefig(f"ChiSquareg4_logL2_approach_e41_{dataset.name}.pdf")
+        plt.close()
+
+        g_aγs = np.linspace(-1e-41, 1e-41, 1000)
+        logL2 = [minusLogLikelihoodIgor(dataset, g_aγ) for g_aγ in g_aγs]
+        plt.plot(g_aγs, logL2)
+        plt.xlabel(' $g_{aγ}^4$ (GeV$^{-4}$)')
+        plt.ylabel('-log L or Chi$^2/2$')
+        plt.savefig(f"ChiSquareg4_Igor_approach_e41_{dataset.name}.pdf")
+        plt.close()
+    """
+    # And now we compute the total likelihood and limit
+    totalLim = totalLimit(dataset_Ar1, dataset_Ar2, dataset_Xe, likelihood)
+    print(f"\033[1;35;40m Combined limit likelihood at : {pow(totalLim, 0.25)}\033[0m")
+
+    totalLim = totalLimit(dataset_Ar1, dataset_Ar2, dataset_Xe, likelihood2)
+    print(f"\033[1;35;40m Combined limit likelihood2 at : {pow(totalLim, 0.25)}\033[0m")
+
+    totalLim = totalLimit(dataset_Ar1, dataset_Ar2, dataset_Xe, likelihoodIgor)
+    print(f"\033[1;35;40m Combined limit Igor  at : {pow(totalLim, 0.25)}\033[0m")
+
+    g4Lin = np.linspace(0.0, 1e-40, 1000)
+    likelihoodLin = [totalLikelihood(dataset_Ar1, dataset_Ar2, dataset_Xe, g4, likelihood) for g4 in g4Lin]
     plt.plot(g4Lin, likelihoodLin)
     plt.xlabel("Coupling constant (GeV$^-4$)")
     plt.ylabel("Likelihood")
     #plt.xscale('log')
     #plt.show()
-    plt.axvline(x=lim, color='r')
-    plt.savefig(f"energy_bins_likelihood_Igor_g4_unbinned_{dataset.name}.pdf")
+    plt.axvline(x=totalLim, color='r')
+    plt.savefig(f"energy_bins_likelihood_g4_unbinned_all_datasets.pdf")
     plt.close()
 
-    g_aγs = np.linspace(-1e-41, 1e-41, 1000)
-    logL2 = [logLikelihood(dataset, g_aγ) for g_aγ in g_aγs]
+    g4Lin = np.linspace(0.0, 1e-40, 1000)
+    likelihoodLin = [totalLikelihood(dataset_Ar1, dataset_Ar2, dataset_Xe, g4, likelihood2) for g4 in g4Lin]
+    plt.plot(g4Lin, likelihoodLin)
+    plt.xlabel("Coupling constant (GeV$^-4$)")
+    plt.ylabel("Likelihood")
+    #plt.xscale('log')
+    #plt.show()
+    plt.axvline(x=totalLim, color='r')
+    plt.savefig(f"energy_bins_likelihood2_g4_unbinned_all_datasets.pdf")
+    plt.close()
+
+    g4Lin = np.linspace(0.0, 1e-40, 1000)
+    likelihoodLin = [totalLikelihood(dataset_Ar1, dataset_Ar2, dataset_Xe, g4, likelihoodIgor) for g4 in g4Lin]
+    plt.plot(g4Lin, likelihoodLin)
+    plt.xlabel("Coupling constant (GeV$^-4$)")
+    plt.ylabel("Likelihood")
+    plt.axvline(x=totalLim, color='r')
+    plt.savefig(f"energy_bins_likelihoodIgor_g4_unbinned_all_datasets.pdf")
+    plt.close()
+
+    g_aγs = np.linspace(-3.0e-40, 3.0e-40, 1000)
+    logL2 = [totalLogLikelihood(dataset_Ar1, dataset_Ar2, dataset_Xe, g_aγ, minusLogLikelihoodIgor) for g_aγ in g_aγs]
     plt.plot(g_aγs, logL2)
     plt.xlabel(' $g_{aγ}^4$ (GeV$^{-4}$)')
     plt.ylabel('-log L or Chi$^2/2$')
-    plt.savefig(f"ChiSquareg4_logL2_approach_e41_{dataset.name}.pdf")
+    plt.show()
+    plt.savefig(f"ChiSquareg4_Igor_approach_all_datasets_zoom.pdf")
     plt.close()
-
-    g_aγs = np.linspace(-1e-41, 1e-41, 1000)
-    logL2 = [minusLogLikelihoodIgor(dataset, g_aγ) for g_aγ in g_aγs]
+    #plt.savefig(f"ChiSquareg4_Nature_approach_all_datasets.pdf")
+    """
+    g_aγs = np.linspace(-1.0e-40, 1.0e-40, 1000)
+    logL2 = [totalLikelihood(dataset_Ar1, dataset_Ar2, dataset_Xe, g_aγ, logLikelihood) for g_aγ in g_aγs]
     plt.plot(g_aγs, logL2)
     plt.xlabel(' $g_{aγ}^4$ (GeV$^{-4}$)')
     plt.ylabel('-log L or Chi$^2/2$')
-    plt.savefig(f"ChiSquareg4_Igor_approach_e41_{dataset.name}.pdf")
+    plt.savefig(f"ChiSquareg4_likelihood_approach_all_datasets_e40.pdf")
     plt.close()
-"""
-# And now we compute the total likelihood and limit
-totalLim = totalLimit(dataset_Ar1, dataset_Ar2, dataset_Xe, likelihood)
-print(f"\033[1;35;40m Combined limit likelihood at : {pow(totalLim, 0.25)}\033[0m")
+    """
+    g_aγs = np.linspace(-3.0e-40, 3.0e-40, 1000)
+    logL2 = [totalLogLikelihood(dataset_Ar1, dataset_Ar2, dataset_Xe, g_aγ, logLikelihood2) for g_aγ in g_aγs]
+    plt.plot(g_aγs, logL2)
+    plt.xlabel(' $g_{aγ}^4$ (GeV$^{-4}$)')
+    plt.ylabel('-log L or Chi$^2/2$')
+    plt.show()
+    plt.savefig(f"ChiSquareg4_likelihood2_approach_all_datasets_zoom.pdf")
+    plt.close()
+    """
+    g_aγs = np.linspace(-1.0e-39, 1.0e-39, 1000)
+    logL2 = [totalLikelihood(dataset_Ar1, dataset_Ar2, dataset_Xe, g_aγ, logLikelihoodBasti) for g_aγ in g_aγs]
+    plt.plot(g_aγs, logL2)
+    plt.xlabel(' $g_{aγ}^4$ (GeV$^{-4}$)')
+    plt.ylabel('-log L or Chi$^2/2$')
+    plt.savefig(f"ChiSquareg4_likelihoodBasti_approach_all_datasets_e39.pdf")
+    plt.close()
+    """
 
-totalLim = totalLimit(dataset_Ar1, dataset_Ar2, dataset_Xe, likelihood2)
-print(f"\033[1;35;40m Combined limit likelihood2 at : {pow(totalLim, 0.25)}\033[0m")
+    """
+    # I plot all the likelihoods together
 
-totalLim = totalLimit(dataset_Ar1, dataset_Ar2, dataset_Xe, likelihoodIgor)
-print(f"\033[1;35;40m Combined limit Igor  at : {pow(totalLim, 0.25)}\033[0m")
-"""
-g4Lin = np.linspace(0.0, 1e-40, 1000)
-likelihoodLin = [totalLikelihood(dataset_Ar1, dataset_Ar2, dataset_Xe, g4, likelihood) for g4 in g4Lin]
-plt.plot(g4Lin, likelihoodLin)
-plt.xlabel("Coupling constant (GeV$^-4$)")
-plt.ylabel("Likelihood")
-#plt.xscale('log')
-#plt.show()
-plt.axvline(x=totalLim, color='r')
-plt.savefig(f"energy_bins_likelihood_g4_unbinned_all_datasets.pdf")
-plt.close()
+    # Combining the plotting commands to make a single plot with all the curves
+    # Define the datasets
+    datasets = [dataset_Ar1, dataset_Ar2, dataset_Xe]
+    # Plotting the likelihood for each individual dataset
+    for dataset in datasets:
+        g4Lin_individual = np.linspace(0.0, 5e-40, 1000)
+        likelihoodLin_individual = [likelihood2(dataset, g4) for g4 in g4Lin_individual]
+        plt.plot(g4Lin_individual, likelihoodLin_individual, label=f"{dataset.name}")
+        lim_individual = limit(dataset, likelihood2)
+        plt.axvline(x=lim_individual, linestyle='--', color='grey')
+    # Plotting the total likelihood for all datasets combined
+    g4Lin_total = np.linspace(0.0, 5e-40, 1000)
+    likelihoodLin_total = [totalLikelihood(dataset_Ar1, dataset_Ar2, dataset_Xe, g4, likelihood2) for g4 in g4Lin_total]
+    plt.plot(g4Lin_total, likelihoodLin_total, label='All Datasets Combined', color='black', linewidth=3)
+    plt.axvline(x=totalLim, color='r', linewidth=2)
 
-g4Lin = np.linspace(0.0, 1e-40, 1000)
-likelihoodLin = [totalLikelihood(dataset_Ar1, dataset_Ar2, dataset_Xe, g4, likelihood2) for g4 in g4Lin]
-plt.plot(g4Lin, likelihoodLin)
-plt.xlabel("Coupling constant (GeV$^-4$)")
-plt.ylabel("Likelihood")
-#plt.xscale('log')
-#plt.show()
-plt.axvline(x=totalLim, color='r')
-plt.savefig(f"energy_bins_likelihood2_g4_unbinned_all_datasets.pdf")
-plt.close()
+    # Adding labels, title, legend, and saving the plot
+    plt.xlabel("Coupling constant (GeV$^-4$)")
+    plt.ylabel("Likelihood")
+    plt.title("Likelihood vs. Coupling Constant for Different Datasets using likelihood2")
+    plt.legend(loc='upper right')
+    plt.tight_layout()
+    plt.savefig("combined_likelihood_plot.pdf")
+    #plt.show()
+    """
 
-g4Lin = np.linspace(0.0, 1e-40, 1000)
-likelihoodLin = [totalLikelihood(dataset_Ar1, dataset_Ar2, dataset_Xe, g4, likelihoodIgor) for g4 in g4Lin]
-plt.plot(g4Lin, likelihoodLin)
-plt.xlabel("Coupling constant (GeV$^-4$)")
-plt.ylabel("Likelihood")
-plt.axvline(x=totalLim, color='r')
-plt.savefig(f"energy_bins_likelihoodIgor_g4_unbinned_all_datasets.pdf")
-plt.close()
-"""
-g_aγs = np.linspace(0.5e-40, 1.3e-40, 1000)
-logL2 = [totalLikelihood(dataset_Ar1, dataset_Ar2, dataset_Xe, g_aγ, minusLogLikelihoodIgor) for g_aγ in g_aγs]
-plt.plot(g_aγs, logL2)
-plt.xlabel(' $g_{aγ}^4$ (GeV$^{-4}$)')
-plt.ylabel('-log L or Chi$^2/2$')
-#plt.show()
-plt.savefig(f"ChiSquareg4_Igor_approach_all_datasets_zoom.pdf")
-plt.close()
-#plt.savefig(f"ChiSquareg4_Nature_approach_all_datasets.pdf")
-"""
-g_aγs = np.linspace(-1.0e-40, 1.0e-40, 1000)
-logL2 = [totalLikelihood(dataset_Ar1, dataset_Ar2, dataset_Xe, g_aγ, logLikelihood) for g_aγ in g_aγs]
-plt.plot(g_aγs, logL2)
-plt.xlabel(' $g_{aγ}^4$ (GeV$^{-4}$)')
-plt.ylabel('-log L or Chi$^2/2$')
-plt.savefig(f"ChiSquareg4_likelihood_approach_all_datasets_e40.pdf")
-plt.close()
-"""
-g_aγs = np.linspace(-3.0e-40, 3.0e-40, 1000)
-logL2 = [totalLikelihood(dataset_Ar1, dataset_Ar2, dataset_Xe, g_aγ, logLikelihood2) for g_aγ in g_aγs]
-plt.plot(g_aγs, logL2)
-plt.xlabel(' $g_{aγ}^4$ (GeV$^{-4}$)')
-plt.ylabel('-log L or Chi$^2/2$')
-#plt.show()
-plt.savefig(f"ChiSquareg4_likelihood2_approach_all_datasets_zoom.pdf")
-plt.close()
-"""
-g_aγs = np.linspace(-1.0e-39, 1.0e-39, 1000)
-logL2 = [totalLikelihood(dataset_Ar1, dataset_Ar2, dataset_Xe, g_aγ, logLikelihoodBasti) for g_aγ in g_aγs]
-plt.plot(g_aγs, logL2)
-plt.xlabel(' $g_{aγ}^4$ (GeV$^{-4}$)')
-plt.ylabel('-log L or Chi$^2/2$')
-plt.savefig(f"ChiSquareg4_likelihoodBasti_approach_all_datasets_e39.pdf")
-plt.close()
-"""
+    """
+    # conversion probability plot
+    g_aγ = np.linspace(1e-13, 1e-10, 1000)
+    plt.plot(g_aγ, conversionProbability()*(g_aγ**2)) # I multiply by g^2 because in the function I had excluded it by dividing it out.
+    plt.xlabel("$g_{aγ}$ (GeV⁻¹)")
+    plt.ylabel("Conversion probability")
+    #plt.title("Conversion Probability vs g_aγ")
+    plt.savefig("ConversionProbability.pdf")
+    plt.close()
 
-"""
-# I plot all the likelihoods together
+    #Primakoff solar axion flux
+    E = np.linspace(0, 10, 200)
+    g_aγ = 1e-10
+    solarAxionFlux_values = np.array([solarAxionFlux(e) for e in E])
+    plt.plot(E, solarAxionFlux_values*(g_aγ**2))
+    plt.xlabel('Energy (keV)')
+    plt.ylabel('Solar axion flux for $g_{a\gamma}·10^{-10}$ (keV⁻¹ cm⁻² s⁻¹)')
+    plt.savefig("SolarAxionPrimakoffFlux.pdf")
+    plt.close()
 
-# Combining the plotting commands to make a single plot with all the curves
-# Define the datasets
-datasets = [dataset_Ar1, dataset_Ar2, dataset_Xe]
-# Plotting the likelihood for each individual dataset
-for dataset in datasets:
-    g4Lin_individual = np.linspace(0.0, 5e-40, 1000)
-    likelihoodLin_individual = [likelihood2(dataset, g4) for g4 in g4Lin_individual]
-    plt.plot(g4Lin_individual, likelihoodLin_individual, label=f"{dataset.name}")
-    lim_individual = limit(dataset, likelihood2)
-    plt.axvline(x=lim_individual, linestyle='--', color='grey')
-# Plotting the total likelihood for all datasets combined
-g4Lin_total = np.linspace(0.0, 5e-40, 1000)
-likelihoodLin_total = [totalLikelihood(dataset_Ar1, dataset_Ar2, dataset_Xe, g4, likelihood2) for g4 in g4Lin_total]
-plt.plot(g4Lin_total, likelihoodLin_total, label='All Datasets Combined', color='black', linewidth=3)
-plt.axvline(x=totalLim, color='r', linewidth=2)
+    solarAxionFlux2019_values = np.array([solarAxionFlux2019(e) for e in E])
+    plt.plot(E, solarAxionFlux2019_values*(g_aγ**2))
+    plt.xlabel('Energy (keV)')
+    plt.ylabel('Solar axion flux 2019 for $g_{a\gamma}·10^{-10}$ (keV⁻¹ cm⁻² s⁻¹)')
+    plt.savefig("SolarAxionPrimakoffFlux2019.pdf")
+    plt.close()
 
-# Adding labels, title, legend, and saving the plot
-plt.xlabel("Coupling constant (GeV$^-4$)")
-plt.ylabel("Likelihood")
-plt.title("Likelihood vs. Coupling Constant for Different Datasets using likelihood2")
-plt.legend(loc='upper right')
-plt.tight_layout()
-plt.savefig("combined_likelihood_plot.pdf")
-#plt.show()
-"""
+    # Plotting both fluxes in one figure
+    plt.figure(figsize=(10, 6))
+    plt.plot(E, solarAxionFlux_values*(g_aγ**2), label='Solar axion flux for $g_{a\gamma}·10^{-10}$')
+    plt.plot(E, solarAxionFlux2019_values*(g_aγ**2), label='Solar axion flux 2019 for $g_{a\gamma}·10^{-10}$', linestyle='--')
+    # Labels, title, and legend
+    plt.xlabel('Energy (keV)')
+    plt.ylabel('Solar axion flux (keV⁻¹ cm⁻² s⁻¹)')
+    plt.title('Comparison of Solar Axion Fluxes')
+    plt.legend()
+    # Save and show the plot
+    plt.tight_layout()
+    plt.savefig("CombinedSolarAxionFlux.pdf")
+    plt.show()
 
-"""
-# conversion probability plot
-g_aγ = np.linspace(1e-13, 1e-10, 1000)
-plt.plot(g_aγ, conversionProbability()*(g_aγ**2)) # I multiply by g^2 because in the function I had excluded it by dividing it out.
-plt.xlabel("$g_{aγ}$ (GeV⁻¹)")
-plt.ylabel("Conversion probability")
-#plt.title("Conversion Probability vs g_aγ")
-plt.savefig("ConversionProbability.pdf")
-plt.close()
+    # Telescope efficiency
+    plt.plot(dfTel["E(keV)"], dfTel["Efficiency"])
+    plt.xlabel("Energy (keV)")
+    plt.ylabel("Efficiency")
+    plt.savefig("telescopeEfficiency.pdf")
+    plt.close()
+    """ 
 
-#Primakoff solar axion flux
-E = np.linspace(0, 10, 200)
-g_aγ = 1e-10
-solarAxionFlux_values = np.array([solarAxionFlux(e) for e in E])
-plt.plot(E, solarAxionFlux_values*(g_aγ**2))
-plt.xlabel('Energy (keV)')
-plt.ylabel('Solar axion flux for $g_{a\gamma}·10^{-10}$ (keV⁻¹ cm⁻² s⁻¹)')
-plt.savefig("SolarAxionPrimakoffFlux.pdf")
-plt.close()
+    """ 
+    # My signal, which is the expected solar axion flux corrected by my efficiencies
+    g_aγ4 = 1e-40
+    signal_values = [signal(dataset, e, g_aγ4, x, y) for e in E]
+    plt.plot(E, signal_values)
+    plt.xlabel('Energy (keV)')
+    plt.ylabel('Received solar axion flux (keV⁻¹cm⁻²s⁻¹)')
+    plt.savefig("SolarAxionTheoreticalSignalFlux.pdf")
+    plt.close()
 
-solarAxionFlux2019_values = np.array([solarAxionFlux2019(e) for e in E])
-plt.plot(E, solarAxionFlux2019_values*(g_aγ**2))
-plt.xlabel('Energy (keV)')
-plt.ylabel('Solar axion flux 2019 for $g_{a\gamma}·10^{-10}$ (keV⁻¹ cm⁻² s⁻¹)')
-plt.savefig("SolarAxionPrimakoffFlux2019.pdf")
-plt.close()
-
-# Plotting both fluxes in one figure
-plt.figure(figsize=(10, 6))
-plt.plot(E, solarAxionFlux_values*(g_aγ**2), label='Solar axion flux for $g_{a\gamma}·10^{-10}$')
-plt.plot(E, solarAxionFlux2019_values*(g_aγ**2), label='Solar axion flux 2019 for $g_{a\gamma}·10^{-10}$', linestyle='--')
-# Labels, title, and legend
-plt.xlabel('Energy (keV)')
-plt.ylabel('Solar axion flux (keV⁻¹ cm⁻² s⁻¹)')
-plt.title('Comparison of Solar Axion Fluxes')
-plt.legend()
-# Save and show the plot
-plt.tight_layout()
-plt.savefig("CombinedSolarAxionFlux.pdf")
-plt.show()
-
-# Telescope efficiency
-plt.plot(dfTel["E(keV)"], dfTel["Efficiency"])
-plt.xlabel("Energy (keV)")
-plt.ylabel("Efficiency")
-plt.savefig("telescopeEfficiency.pdf")
-plt.close()
-""" 
-
-""" 
-# My signal, which is the expected solar axion flux corrected by my efficiencies
-g_aγ4 = 1e-40
-signal_values = [signal(dataset, e, g_aγ4, x, y) for e in E]
-plt.plot(E, signal_values)
-plt.xlabel('Energy (keV)')
-plt.ylabel('Received solar axion flux (keV⁻¹cm⁻²s⁻¹)')
-plt.savefig("SolarAxionTheoreticalSignalFlux.pdf")
-plt.close()
-
-# Total signal
-g_aγ4 = np.linspace(1e-52, 1e-40, 1000)
-totalSignal_values = [totalSignal(g4) for g4 in g_aγ4]
-plt.plot(g_aγ4, totalSignal_values)
-plt.xlabel('$g_{aγ}^4$ (GeV$^{-4}$)')
-plt.ylabel('Total signal (counts)')
-plt.savefig("TotalSignal.pdf")
-plt.close()
+    # Total signal
+    g_aγ4 = np.linspace(1e-52, 1e-40, 1000)
+    totalSignal_values = [totalSignal(g4) for g4 in g_aγ4]
+    plt.plot(g_aγ4, totalSignal_values)
+    plt.xlabel('$g_{aγ}^4$ (GeV$^{-4}$)')
+    plt.ylabel('Total signal (counts)')
+    plt.savefig("TotalSignal.pdf")
+    plt.close()
 
 
- """
+    """
+if __name__ == "__main__":
+    main()
 
