@@ -1,0 +1,87 @@
+# An axion initialisation file for GAMBIT (in YAML)
+
+###################################
+ # Input parameter declarations
+###################################
+
+Parameters:
+  GeneralALP:
+    fa: 1
+    ma0:
+      range: [1e-4, 1]
+      prior_type: log
+    Tchi: 1
+    beta: 1
+    gagg:
+      range: [1e-11, 1e-9]
+      prior_type: log
+    gaee: 0
+    gaN: 0
+    thetai: 1
+
+##############################
+ # Prior setup
+##############################
+
+#Priors:
+
+##############################
+ # Printer setup
+##############################
+
+Printer:
+  printer: ascii
+  options:
+    output_file: "CAST2017_loglike_table.txt"
+    delete_file_on_restart: true
+
+##############################
+ # Scanner setup
+##############################
+
+Scanner:
+  use_scanner: grid
+
+  scanners:
+    grid:
+      plugin: grid
+      like: LogLike
+      grid_pts: [800, 400]
+      parameters: ["GeneralALP::ma0", "GeneralALP::gagg"]
+
+###############################
+ # logLikes and Observables
+###############################
+
+ObsLikes:
+  #- capability: lnL_CAST2007
+  #  purpose: LogLike
+  - capability: lnL_CAST2017
+    purpose: LogLike
+
+#########################
+ # Rules
+#########################
+
+#########################
+ # Logging setup
+#########################
+
+Logger:
+  redirection:
+    [Debug] : "debug.log"
+    [Default] : "default.log"
+    [DarkBit] : "DarkBit.log"
+    [Dependency Resolver] : "dep_resolver.log"
+
+#########################
+ # Global options
+#########################
+
+KeyValues:
+  default_output_path: "./runs/cast2017"
+  dependency_resolution:
+    prefer_model_specific_functions: true
+  likelihood:
+    model_invalid_for_lnlike_below: -1e6
+# End of file
