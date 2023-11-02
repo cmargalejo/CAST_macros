@@ -278,8 +278,10 @@ def background(dataset, E):
 
 def totalBackground(dataset):
     energies = np.linspace(0.0,10.0,1000)
-    backgrounds = background(dataset, energies) # gives an array of 1000 backg. rates
-    return sc.simpson(backgrounds, energies)
+    backgrounds = background(dataset, energies) # gives an array of 1000 background rates in counts keV⁻¹ cm^-2
+    #return sc.simpson(backgrounds, energies) #this was before, when I had the wrong units in background() because I was including there the readoutArea
+    integrated_background = sc.simpson(backgrounds, energies)
+    return integrated_background * readoutArea  # Multiply by the readout area to get total counts
 
 def likelihood(dataset, g_aγ4) -> float:
     result = np.exp(-(totalSignal(dataset, g_aγ4)+totalBackground(dataset))) #e^(-(s_tot + b_tot))
@@ -302,7 +304,7 @@ def likelihood(dataset, g_aγ4) -> float:
 
 def likelihood2(dataset, g_aγ4) -> float: # Basti's version based on the division of Poissonian probabilities
     result = np.exp(-(totalSignal(dataset, g_aγ4))) #e^(-(s_tot ))
-    print("Total signal result = ", result)
+    #print("Total signal result = ", result)
     cEnergies = np.array(dataset.candidates["Es"]) # this will have to be modified when we have the position
     candidate_pos_x = np.array(dataset.candidates["xs"])
     candidate_pos_y = np.array(dataset.candidates["ys"])
@@ -405,6 +407,7 @@ def totalLimit(dataset1, dataset2, dataset3, likelihoodFunction=likelihood):
     return g4Lin[limitIdx]
 
 
+
 def main():
     print(likelihood2(dataset_Xe, -1e-38))
     print(likelihood2(dataset_Xe, 0))
@@ -433,6 +436,7 @@ def main():
         #plt.ylabel('-log L or Chi$^2/2$')
         #plt.savefig("ChiSquareg4_Nature_approach_unbinned.pdf")
         #plt.close()
+
     """
         g4Lin = np.linspace(0.0, 5e-40, 1000)
         likelihoodLin = [likelihoodIgor(dataset, g4) for g4 in g4Lin]
