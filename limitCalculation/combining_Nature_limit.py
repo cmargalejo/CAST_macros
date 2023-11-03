@@ -67,19 +67,46 @@ plt.show()
 
 # Define the range of g^4 values for which you want to calculate the combined likelihood
 #g_aγ4_values = np.linspace(start=np.min(selected_g), stop=np.max(selected_g), num=1000)
-g_aγ4_values = np.linspace(start=0, stop=1e-40, num=10)
-
+g_aγ4_values = np.linspace(0.0, 1e-40, 1000)
+nature_likelihood = interp_likelihood_g4(g_aγ4_values)
 # Calculate the combined likelihood for each g^4 value
-combined_likelihoods = [totalLikelihood(dataset_Ar1, dataset_Ar2, dataset_Xe, g_aγ4, likelihood) * interp_likelihood_g4(g_aγ4) for g_aγ4 in g_aγ4_values]
+combined_likelihoods = [totalLikelihood(dataset_Ar1, dataset_Ar2, dataset_Xe, g_aγ4, likelihood2) * interp_likelihood_g4(g_aγ4) for g_aγ4 in g_aγ4_values]
 
-# Plotting
-plt.figure(figsize=(14, 7))
-# Plot the total likelihood from the datasets
-plt.plot(g_aγ4_values, totalLikelihood, label='Total Likelihood from Datasets', color='blue')
-# Plot the interpolated likelihood
-plt.plot(g_aγ4_values, interp_likelihood_g4, label='Interpolated Likelihood', color='orange')
-# Plot the product of the two likelihoods
-plt.plot(g_aγ4_values, combined_likelihoods, label='Product of Likelihoods', color='green')
+totalLim = totalLimit(dataset_Ar1, dataset_Ar2, dataset_Xe, likelihood2)
+print(f"\033[1;35;40m Combined limit likelihood2 at : {pow(totalLim, 0.25)}\033[0m")
+
+
+def singleLimit(likelihoodFunction=likelihood):
+    # Compute limit, CDF@95%
+    # limit needs non logspace x & y data! (at least if computed in this simple way)
+    g4Lin = np.linspace(0.0, 1e-40, 1000)
+    LCumSum = np.cumsum(likelihoodFunction)          # cumulative sum
+    LMax = LCumSum.max()               # maximum of the cumulative sum
+    LCdf = LCumSum / LMax              # normalize to get (empirical) CDF
+    limitIdx = bisect_left(LCdf, 0.95) # limit at 95% of the CDF
+    g4_limit = g4Lin[limitIdx]
+    g_limit = g4_limit ** 0.25
+    #print("limit g = ", g_limit, ", limit g4 = ", g4_limit)
+    return g4_limit
+
+natureLim = singleLimit(nature_likelihood)
+print(f"\033[1;35;40m Nature limit at : {pow(natureLim, 0.25)}\033[0m")
+
+finalLim = singleLimit(combined_likelihoods)
+print(f"\033[1;35;40m Final limit at : {pow(finalLim, 0.25)}\033[0m")
+
+# Plotting the total likelihood for all datasets combined
+g4Lin_total = np.linspace(0.0, 1e-40, 1000)
+likelihoodLin_total = [totalLikelihood(dataset_Ar1, dataset_Ar2, dataset_Xe, g4, likelihood2) for g4 in g4Lin_total]
+likelihoodNature = [interp_likelihood_g4(g4) for  g4 in g4Lin_total]
+plt.plot(g4Lin_total, likelihoodLin_total, label='2019-2022 data', color='blue', linewidth=1)
+plt.plot(g4Lin_total, likelihoodNature, label='Nature 2017 data', color='green', linewidth=1)
+plt.plot(g4Lin_total, combined_likelihoods, label='Total', color='black', linewidth=3)
+#plt.plot(g4Lin_total, combined_likelihoods2, label='Total', color='yellow', linewidth=2)
+#plt.axvline(x=totalLim, color='r', linewidth=2)
+plt.axvline(x=totalLim, color='blue',  linestyle=":")
+plt.axvline(x=natureLim, color='green',  linestyle="--")
+plt.axvline(x=finalLim, color='black', linestyle="--")
 plt.xlabel('g^4 values')
 plt.ylabel('Likelihood')
 plt.title('Likelihood Comparisons')
