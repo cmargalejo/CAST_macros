@@ -72,13 +72,13 @@ def perform_interpolation(filename, csv_filename, isAxion = False):
         #df["x"] = df["x"] - df["x"].mean() + 1.3 #because the mean is 31.3, but I have to move it only 30 mm
         #df["y"] = df["y"] - df["y"].mean() + 0.025 #because the mean is 30.25, but I have to move it only 30 mm
         df["x"] = df["x"] - 31.114 # 31.139 these are the values of the centroid that match it with the position of the X-ray finger centroid. But df is already -30, so I only put the difference.
-        df["y"] = df["y"] - 30.23 # 30.3 these are the values of the centroid that match it with the position of the X-ray finger centroid. But df is already -30, so I only put the difference.
+        df["y"] = df["y"] - 30.283 # 30.3 these are the values of the centroid that match it with the position of the X-ray finger centroid. But df is already -30, so I only put the difference.
     else:
         df = pd.read_csv(filename, skiprows = 2, delim_whitespace = True, names = ["x", "y", "z"])
         #df["x"] = df["x"] - 30.0
         #df["y"] = df["y"] - 30.0
         df["x"] = df["x"] - 31.114 # these are the values of the centroid that match it with the position of the X-ray finger centroid
-        df["y"] = df["y"] - 30.23 # these are the values of the centroid that match it with the position of the X-ray finger centroid
+        df["y"] = df["y"] - 30.283 # these are the values of the centroid that match it with the position of the X-ray finger centroid
     #print(df)
     # Sort data by *X* then *Y*
     df = df.sort_values(by = ["x", "y"], ascending = True)
