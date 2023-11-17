@@ -1,6 +1,62 @@
 from unbinned_likelihood_CAST_g4_datasets import *
 from scipy.signal import convolve
 
+# Total efficicnecy
+energies = np.linspace(0, 10, 500)
+datasets = [dataset_Ar1, dataset_Ar2, dataset_Xe]
+for dataset in datasets:
+    detector_efficiencies = [detectorEff(dataset, E) for E in energies]
+    software_efficiencies = [softwareEff(dataset, E) for E in energies]
+    telescope_efficiencies = [lerpTel(E) for E in energies]
+    total_efficiency = np.array(detector_efficiencies) * np.array(software_efficiencies) * np.array(telescope_efficiencies)
+    plt.plot(energies, detector_efficiencies, label='Detector Efficiency')
+    plt.plot(energies, software_efficiencies, label='Software Efficiency')
+    plt.plot(energies, telescope_efficiencies, label='Telescope Efficiency')
+    plt.plot(energies, total_efficiency, label='Total Efficiency', linewidth=4)
+
+    plt.xlabel('Energy (keV)')
+    plt.ylabel('Efficiency')
+    plt.title(f'Efficiencies and Total Efficiency for {dataset.name}')
+    plt.legend()
+    plt.grid(True)
+    plt.show()
+
+# Software efficiency
+energy_values = np.linspace(0, 10, num=10)
+# Calculate efficiency values for each dataset
+efficiency_Ar1 = [softwareEff(dataset_Ar1, E) for E in energy_values]
+efficiency_Ar2 = [softwareEff(dataset_Ar2, E) for E in energy_values]
+efficiency_Xe = [softwareEff(dataset_Xe, E) for E in energy_values]
+# Plot the efficiency values for each dataset
+plt.plot(energy_values, efficiency_Ar1, label='Ar1')
+plt.plot(energy_values, efficiency_Ar2, label='Ar2')
+plt.plot(energy_values, efficiency_Xe, label='Xe')
+# Add labels and legend
+plt.xlabel('Energy (keV)')
+plt.ylabel('Software Efficiency')
+plt.title('Software Efficiency vs Energy')
+plt.legend()
+plt.grid(True)
+plt.show()
+plt.savefig("plots/SoftwareEfficiency.pdf")
+plt.close()
+
+
+# gas and window efficiency
+dfDetAr = pd.read_csv("data/ArgonAndWindowEfficiency.csv")
+dfDetXe = pd.read_csv("data/XenonAndNeonAndWindowEfficiency.csv")
+#lerpDetAr = interp1d(dfDetAr["Photon energy [keV]"], dfDetAr["Efficiency"], bounds_error = False, fill_value = 0.0)
+plt.plot(dfDetAr["Photon energy [keV]"], dfDetAr["Efficiency"], label="Ar")
+plt.plot(dfDetXe["Photon energy [keV]"], dfDetXe["Efficiency"], label="Xe")
+plt.xlabel("Energy (keV)")
+plt.ylabel("Gas and window efficiency")
+plt.legend()
+plt.grid(True)
+plt.show()
+plt.savefig("plots/DetectorEfficiency.pdf")
+plt.close()
+
+
 
 def signalIntegrated(dataset, E, g_aγ4): # in counts keV⁻¹ cm^-2
     ## Returns the axion flux based on `g` and energy `E`
@@ -21,13 +77,14 @@ plt.plot(E, signal_total, label='Total', color='black', linestyle='--')
 plt.xlabel('Energy (keV)')
 plt.ylabel('Received solar axion flux (keV⁻¹cm⁻²s⁻¹)')
 plt.legend()
+plt.grid(True)
 plt.show()
 plt.savefig("plots/SolarAxionTheoreticalSignalFluxCombined.pdf")
 plt.close()
 
 """
 # Define a Gaussian function for the energy resolution
-def gaussian(x, sigma):
+def gaussian(x, sigma): 
     return 1/(sigma * np.sqrt(2 * np.pi)) * np.exp(-x**2 / (2 * sigma**2))
 energy_resolution = 0.5  # in keV
 # Create an array of energy values for the Gaussian
@@ -101,6 +158,7 @@ g_aγ = np.linspace(1e-13, 1e-10, 1000)
 plt.plot(g_aγ, conversionProbability()*(g_aγ**2)) # I multiply by g^2 because in the function I had excluded it by dividing it out.
 plt.xlabel("$g_{aγ}$ (GeV⁻¹)")
 plt.ylabel("Conversion probability")
+plt.grid(True)
 #plt.title("Conversion Probability vs g_aγ")
 plt.show()
 plt.savefig("plots/ConversionProbability.pdf")
@@ -113,6 +171,7 @@ solarAxionFlux_values = np.array([solarAxionFlux(e) for e in E])
 plt.plot(E, solarAxionFlux_values*(g_aγ**2))
 plt.xlabel('Energy (keV)')
 plt.ylabel('Solar axion flux for $g_{a\gamma}·10^{-10}$ (keV⁻¹ cm⁻² s⁻¹)')
+plt.grid(True)
 plt.savefig("plots/SolarAxionPrimakoffFlux.pdf")
 plt.close()
 
@@ -120,6 +179,7 @@ solarAxionFlux2019_values = np.array([solarAxionFlux2019(e) for e in E])
 plt.plot(E, solarAxionFlux2019_values*(g_aγ**2))
 plt.xlabel('Energy (keV)')
 plt.ylabel('Solar axion flux 2019 for $g_{a\gamma}·10^{-10}$ (keV⁻¹ cm⁻² s⁻¹)')
+plt.grid(True)
 plt.show()
 plt.savefig("plots/SolarAxionPrimakoffFlux2019.pdf")
 plt.close()
@@ -159,6 +219,7 @@ plt.plot(g_aγ4, signal_total, label='Total', color='black', linestyle='--')
 plt.xlabel('$g_{aγ}^4$ (GeV$^{-4}$)')
 plt.ylabel('Total signal (counts)')
 plt.legend()
+plt.grid(True)
 plt.show()
 plt.savefig("plots/TotalSignalCombined.pdf")
 plt.close()
@@ -167,6 +228,22 @@ plt.close()
 plt.plot(dfTel["E(keV)"], dfTel["Efficiency"])
 plt.xlabel("Energy (keV)")
 plt.ylabel("Efficiency")
+plt.grid(True)
 plt.show()
 plt.savefig("plots/telescopeEfficiency.pdf")
 plt.close()
+
+# Gas and window efficiency
+
+dfDetAr = pd.read_csv("data/ArgonAndWindowEfficiency.csv")
+#lerpDetAr = interp1d(dfDetAr["Photon energy [keV]"], dfDetAr["Efficiency"], bounds_error = False, fill_value = 0.0)
+plt.plot(dfDetAr["Photon energy [keV]"], dfDetAr["Efficiency"])
+plt.xlabel("Energy (keV)")
+plt.ylabel("Efficiency")
+plt.grid(True)
+plt.show()
+plt.savefig("plots/ArDetectorEfficiency.pdf")
+plt.close()
+
+
+
