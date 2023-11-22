@@ -42,7 +42,7 @@ def candidate_position_transformation(positions_data, x_min, x_max, y_min, y_max
     #print("Filtered Positions:")
     #print(filtered_positions_data)
 
-def weighted_percentile(matrix, q):
+def weighted_percentile(matrix, q): #contours
     values = matrix.flatten()
     weights = values.tolist()
 
@@ -88,6 +88,7 @@ def perform_interpolation(filename, csv_filename, isAxion = False):
     unique_x = pd.unique(df["x"])
     unique_y = pd.unique(df["y"])
     # Construct array for interpolation
+    """
     zs = np.zeros([size, size])
     for x in range(size):
         for y in range(size):
@@ -95,6 +96,15 @@ def perform_interpolation(filename, csv_filename, isAxion = False):
             ## first index is *row*, not column!
             zs[x, y] = df["z"][x * size + y] # Sorted by `x` first, hence `x` changes
                                              # *after* y.
+    """
+    zs = np.zeros([size, size])
+    zSum = np.sum(df["z"])
+    areaPerPixel = 0.01 * 0.01 # strip pitch in cm, final units in cm^2. But in the .txt file I have data every 0.1 mm
+    for x in range(size):
+        for y in range(size):
+            z = df["z"][x * size + y] 
+            zs[x, y] = (z / zSum / areaPerPixel) # normalisation (per fraction and per cm^2)
+
     # Convolve the data with a Gaussian kernel
     #kernel_size = int(convolved_resolution / 0.1)
     #sigma = convolved_resolution / (2 * np.sqrt(2 * np.log(2)))  # Convert FWHM to standard deviation
@@ -209,7 +219,7 @@ def perform_interpolation(filename, csv_filename, isAxion = False):
 map_filename = '/home/cristina/GitHub/CAST_macros/limitCalculation/data/Jaime_data/2016_DEC_Final_CAST_XRT/3.00keV_2Dmap_CoolX.txt'
 #axion_image_filename = '/home/cristina/GitHub/CAST_macros/limitCalculation/data/llnl_raytracing_Jaime_all_energies.txt' # this one has the mean subtracted
 axion_image_filename = '/home/cristina/GitHub/CAST_macros/limitCalculation/data/llnl_raytracing_Jaime_all_energies_raw_sum.txt'
-csv_filename = 'data/cluster_candidates_tracking.csv'
+csv_filename = "data/bg_df_candidates_Xe.csv" # "data/bg_df_candidates_Ar1.csv" "data/bg_df_candidates_Ar2.csv" "data/bg_df_candidates_Xe.csv" 'data/cluster_candidates_tracking.csv'
 calibration_filename = 'data/R00649_centers_filtered.csv'
 convolved_resolution = 500  # Desired convolved spatial resolution (FWHM) in um (microns) is convolved_resolution FWHM = 2 * sqrt(2 * ln(2)) * sigma    
                             # 500 microns is equivalent to a physical resolution of 200 microns, Why? If FWHM=500 um, sigma=2.12*100 = 212 um. In other words, in the zs matrix, if sigma=2
