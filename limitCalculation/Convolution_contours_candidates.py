@@ -189,6 +189,17 @@ def perform_interpolation(filename, csv_filename, isAxion = False):
         #[pos[1] for pos in filtered_positions_data],
         c='red', marker='x', label='Filtered CSV File Positions'
     )
+    # Adding ENERGY text labels for each point
+    """
+    for index, row in filtered_positions_data.iterrows():
+        plt.text(row['xs'], row['ys'], f'{row["Es"]:.2f}', color='white', fontsize=8)
+    
+    plt.xlabel('xs')
+    plt.ylabel('ys')
+    plt.title('Position of Events with Energy Labels')
+    plt.legend()
+    plt.show()
+    """
     ## Interpolate each cluster and directly annotate
     for i, pos in filtered_positions_data.iterrows():
         print(pos)
@@ -208,7 +219,12 @@ def perform_interpolation(filename, csv_filename, isAxion = False):
     # Add the circle of calibration runs
     circle = plt.Circle((0, 0), 8.5, fill=False, edgecolor='white', linestyle='dashed', linewidth=1)
     plt.gca().add_artist(circle)
-
+    """
+    circle4 = plt.Circle((0, 0), 4, fill=False, edgecolor='white', linestyle='dashed', linewidth=1)
+    plt.gca().add_artist(circle4)
+    circle5 = plt.Circle((0, 0), 5, fill=False, edgecolor='white', linestyle='dashed', linewidth=1)
+    plt.gca().add_artist(circle5)
+    """
     fname = "clusters_tests.pdf" if not isAxion else "clusters_tests_axion.pdf"
     plt.savefig(fname)
     plt.show()
@@ -219,7 +235,7 @@ def perform_interpolation(filename, csv_filename, isAxion = False):
 map_filename = '/home/cristina/GitHub/CAST_macros/limitCalculation/data/Jaime_data/2016_DEC_Final_CAST_XRT/3.00keV_2Dmap_CoolX.txt'
 #axion_image_filename = '/home/cristina/GitHub/CAST_macros/limitCalculation/data/llnl_raytracing_Jaime_all_energies.txt' # this one has the mean subtracted
 axion_image_filename = '/home/cristina/GitHub/CAST_macros/limitCalculation/data/llnl_raytracing_Jaime_all_energies_raw_sum.txt'
-csv_filename = "data/bg_df_candidates_Xe.csv" # "data/bg_df_candidates_Ar1.csv" "data/bg_df_candidates_Ar2.csv" "data/bg_df_candidates_Xe.csv" 'data/cluster_candidates_tracking.csv'
+csv_filename = 'data/cluster_candidates_tracking.csv' # "data/bg_df_candidates_Ar1.csv" "data/bg_df_candidates_Ar2.csv" "data/bg_df_candidates_Xe.csv" 'data/cluster_candidates_tracking.csv'
 calibration_filename = 'data/R00649_centers_filtered.csv'
 convolved_resolution = 500  # Desired convolved spatial resolution (FWHM) in um (microns) is convolved_resolution FWHM = 2 * sqrt(2 * ln(2)) * sigma    
                             # 500 microns is equivalent to a physical resolution of 200 microns, Why? If FWHM=500 um, sigma=2.12*100 = 212 um. In other words, in the zs matrix, if sigma=2
