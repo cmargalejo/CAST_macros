@@ -7,6 +7,7 @@ from scipy.interpolate import interp1d
 from scipy.interpolate import interp2d, griddata, RectBivariateSpline, RegularGridInterpolator
 from bisect import bisect_left
 import scipy.integrate as sc # simpson numerical integration routine
+from scipy.ndimage import gaussian_filter
 
 
 #These are real data as of 14th july 2023
@@ -43,6 +44,7 @@ SoftwareEfficiencyXe = np.array([0.80, 0.94,   0.84,     0.81,   0.88,   0.87])
 #axion_image_filename = '/home/cristina/GitHub/CAST_macros/limitCalculation/data/llnl_raytracing_Jaime_all_energies.txt'
 #axion_image_filename = '/home/cris/src/GitHub/CAST_macros/limitCalculation/data/llnl_raytracing_Jaime_all_energies.txt'
 axion_image_filename = 'data/llnl_raytracing_Jaime_all_energies_raw_sum.txt'
+convolved_resolution = 500
 
 def setupAxionImageInterpolator(filename, convolved_resolution): #I should check individually that this sums up to 1, by computing the
     # Read the text file using Pandas
@@ -50,8 +52,8 @@ def setupAxionImageInterpolator(filename, convolved_resolution): #I should check
     # Compute normalized data. Using *MEAN* of *DATA*
     #df["x"] = df["x"] - df["x"].mean() + 1.3 #because the mean is 31.3, but I have to move it only 30 mm
     #df["y"] = df["y"] - df["y"].mean() + 0.025 #because the mean is 30.25, but I have to move it only 30 mm
-    df["x"] = df["x"] - 31.139 # these are the values of the centroid that match it with the position of the X-ray finger cetnroid
-    df["y"] = df["y"] - 29.76 # these are the values of the centroid that match it with the position of the X-ray finger cetnroid
+    df["x"] = df["x"] - 31.114 # these are the values of the centroid that match it with the position of the X-ray finger cetnroid
+    df["y"] = df["y"] - 30.283 # these are the values of the centroid that match it with the position of the X-ray finger cetnroid 30.283
     # Sort data by *X* then *Y*
     df = df.sort_values(by = ["x", "y"], ascending = True)
     # Number of elements per axis
@@ -63,7 +65,7 @@ def setupAxionImageInterpolator(filename, convolved_resolution): #I should check
     # Construct array for interpolation
     zs = np.zeros([size, size])
     zSum = np.sum(df["z"])
-    areaPerPixel = 0.01 * 0.01 # strip pitch in cm, final units in cm^2. But in the .txt file I have data every 0.1 mm
+    areaPerPixel = 0.01 * 0.01 # strip pitch in cm, final units in cm^2. But in the .txt file I have data every 0.1 mm, which is 0.01 cm
     for x in range(size):
         for y in range(size):
             ## Important: First entries are `x`, second `y`. "Matrix" convention, i.e.
@@ -72,12 +74,12 @@ def setupAxionImageInterpolator(filename, convolved_resolution): #I should check
             zs[x, y] = (z / zSum / areaPerPixel) # Sorted by `x` first, hence `x` changes NORMALIZATION TO 1 if we cover the entire readout
                                              # *after* y.
     # Convolve the data with a Gaussian kernel
-    #sigma = convolved_resolution / 2.35482 #by definition, convolved_resolution = FWHM = 2 * sqrt(2 * ln(2)) * sigma = 2.35482 * sigma
-    #sigma = sigma / 100 # to convert into um
-    #print("Sigma = ", sigma)
-    #convolved_zs = gaussian_filter(zs, sigma=sigma, mode='wrap')
+    sigma = convolved_resolution / 2.35482 #by definition, convolved_resolution = FWHM = 2 * sqrt(2 * ln(2)) * sigma = 2.35482 * sigma
+    sigma = sigma / 100 # to convert into um
+    print("Sigma = ", sigma)
+    convolved_zs = gaussian_filter(zs, sigma=sigma, mode='wrap')
     # Create a RegularGridInterpolator
-    return RegularGridInterpolator((unique_x, unique_y), zs, method='linear', bounds_error = False, fill_value = 0.0) #linear, nearest
+    return RegularGridInterpolator((unique_x, unique_y), convolved_zs, method='linear', bounds_error = False, fill_value = 0.0) #linear, nearest
 
 def candidate_position_transformation(positions_data, x_min, x_max, y_min, y_max, radius):
     # Create specular image by negating x-coordinates
@@ -130,6 +132,7 @@ dataset_Ar1 = Dataset(
     total_time=130.367, #in hours
     #candidates_csv="data/cluster_candidates_tracking.csv",
     candidates_csv="data/bg_df_candidates_Ar1.csv",
+    #candidates_csv="data/bg_df_candidates_many_candidates_Ar1.csv", #data/bg_df_candidates_zero_candidates.csv data/bg_df_candidates_many_candidates_Ar1.csv 
     energies=Energies,
     energies_software=EnergiesSoftware,
     name="Ar1",
@@ -143,6 +146,7 @@ dataset_Ar2 = Dataset(
     detector_efficiency="data/ArgonAndWindowEfficiency.csv",
     total_time=25.5833, #in hours
     candidates_csv="data/bg_df_candidates_Ar2.csv",
+    #candidates_csv="data/bg_df_candidates_many_candidates_Ar2.csv", #data/bg_df_candidates_zero_candidates.csv data/bg_df_candidates_many_candidates_Ar2.csv 
     energies=Energies,
     energies_software=EnergiesSoftware,
     name="Ar2",
@@ -156,6 +160,7 @@ dataset_Xe = Dataset(
     detector_efficiency="data/XenonAndNeonAndWindowEfficiency.csv",
     total_time=159, #in hours
     candidates_csv="data/bg_df_candidates_Xe.csv",
+    #candidates_csv="data/bg_df_candidates_many_candidates_Xe.csv", #data/bg_df_candidates_zero_candidates.csv data/bg_df_candidates_many_candidates_Xe.csv 
     energies=Energies,
     energies_software=EnergiesSoftware,
     name="Xe",
@@ -262,7 +267,7 @@ def totalSignal(dataset, g_aγ4):
 # It gives the amount of signal in counts keV⁻¹ expected for each channel.
 # In this case channels are energy bins, so correspond to energy E.
 def signal(dataset, E, g_aγ4, x, y): # in counts keV⁻¹ cm^-2
-    ## Returns the axion flux based on `g` and energy `E` and position (x,y)
+    ## Returns the axion flux based on `g` and energy `E`
     #print("Solar axion flux = ", solarAxionFlux(E), ", area of bore = ", areaBore, ", conversion probability = ", conversionProbability(), ", telescope eff = ", telescopeEff(E), ", detector eff = ", detectorEff(dataset, E), ", software eff = ", softwareEff(dataset, E), "gag = ", g_aγ4, "candidate weights = ", candidate_weights(dataset, x, y))
     return solarAxionFlux(E) * dataset.total_time * areaBore * conversionProbability() * telescopeEff(E) * detectorEff(dataset, E) * softwareEff(dataset, E) * g_aγ4 * candidate_weights(dataset, x, y) #be careful because this area is that of the bore, not the spot on the readout
 
@@ -273,7 +278,7 @@ def background(dataset, E):
     ## This also allows us to see that the "closer" we cut to the expected axion signal on the
     ## detector, the less background we have compared to the *fixed* signal flux!
     #print("Background = ", (lerpBackground(E) * totalTime * readoutArea))
-    #return (dataset.lerpBackground(E) * dataset.total_time * readoutArea) # in counts keV⁻¹  #be careful because this area is that of the spot on the readout, not the bore
+    #return (dataset.lerpBackground(E) * dataset.total_time * readoutArea ) # in counts keV⁻¹  #be careful because this area is that of the spot on the readout, not the bore
     return (dataset.lerpBackground(E) * dataset.total_time) # in counts keV⁻¹ cm^-2
     #return (np.interp(E, Energies, Background) * totalTime * readoutArea)
 
@@ -341,6 +346,22 @@ def logLikelihoodBasti(dataset, g_aγ4) -> float: # Basti's version based on the
         #print("result ", result, " for candidate energy ", E, "background = ", b, " and signal = ", s)
     return -result
 
+def minusLogLikelihoodCris(dataset, g_aγ4) -> float: # Basti's version based on the division of Poissonian probabilities
+    result = (totalSignal(dataset, g_aγ4) + totalBackground(dataset)) #((s_tot + b_tot ))
+    #print("Total signal result = ", result)
+    cEnergies = np.array(dataset.candidates["Es"]) # this will have to be modified when we have the position
+    candidate_pos_x = np.array(dataset.candidates["xs"])
+    candidate_pos_y = np.array(dataset.candidates["ys"])
+    for candidate in range(len(cEnergies)): # column names in df are xs, ys, Es
+        E = cEnergies[candidate]
+        x = candidate_pos_x[candidate]
+        y = candidate_pos_y[candidate]
+        s = signal(dataset, E, g_aγ4, x, y)
+        b = background(dataset, E)
+        result -= np.log(s+b)
+        #print("result ", result, " for candidate energy ", E, "background = ", b, " and signal = ", s)
+    return result
+
 def minusLogLikelihoodIgor(dataset, g_aγ4) -> float:
     result = (totalSignal(dataset, g_aγ4)+totalBackground(dataset)) #(s_tot + b_tot) are theoretical values >0
     cEnergies = np.array(dataset.candidates["Es"]) # this will have to be modified when we have the position
@@ -365,6 +386,32 @@ def minusLogLikelihoodIgor(dataset, g_aγ4) -> float:
 def likelihoodIgor(dataset, g_aγ4) -> float:
     return np.exp(-minusLogLikelihoodIgor(dataset, g_aγ4))
 
+def likelihoodCris(dataset, g_aγ4) -> float:
+    return np.exp(-minusLogLikelihoodCris(dataset, g_aγ4))
+
+def chi2(dataset, g_aγ4) -> float:
+    return 2.0*(minusLogLikelihoodCris(dataset, g_aγ4))
+
+def chi2basti(dataset, g_aγ4) -> float:
+    return 2.0*(logLikelihood2(dataset, g_aγ4))
+
+def chi2igor(dataset, g_aγ4) -> float:
+    return 2.0*(minusLogLikelihoodIgor(dataset, g_aγ4))
+    
+# Function to find the minimum minus log-likelihood and corresponding g^4
+def findMinimumMinusLogLikelihood(likelihoodFunction, dataset, g_aγ4_values):
+    min_likelihood = float('inf')
+    min_g_aγ4 = None    
+    for g_aγ4 in g_aγ4_values:
+        likelihood = likelihoodFunction(dataset, g_aγ4)
+        if likelihood < min_likelihood:
+            min_likelihood = likelihood
+            min_g_aγ4 = g_aγ4
+    #print(f"Minimum minus log-likelihood: {min_likelihood}")
+    #print(f"Corresponding g^4 value: {min_g_aγ4}")
+    print(f"\033[1;35;40m Minimum minus log-likelihood: {min_likelihood}\033[0m")
+    print(f"\033[1;35;40m Corresponding g^4 value: {min_g_aγ4}\033[0m")
+
 # Now we compute the combined likelihood, which is simply the product of the likelihood of each of the 3 datasets     
 def totalLikelihood(dataset1, dataset2, dataset3, g_aγ4, likelihoodFunction=likelihood) -> float:
     likelihood_1 = likelihoodFunction(dataset1, g_aγ4)
@@ -386,7 +433,7 @@ def limit(dataset, likelihoodFunction=likelihood):
     # Compute limit, CDF@95%
     # limit needs non logspace x & y data! (at least if computed in this simple way)
     g4Lin = np.linspace(0.0, 5e-40, 1000)
-    likelihoodLin = [likelihoodFunction(dataset, g4) for g4 in g4Lin]
+    likelihoodLin = likelihoodFunction(dataset, g4Lin)
     LCumSum = np.cumsum(likelihoodLin)          # cumulative sum
     LMax = LCumSum.max()               # maximum of the cumulative sum
     LCdf = LCumSum / LMax              # normalize to get (empirical) CDF
@@ -398,8 +445,8 @@ def limit(dataset, likelihoodFunction=likelihood):
 def totalLimit(dataset1, dataset2, dataset3, likelihoodFunction=likelihood):
     # Compute limit, CDF@95%
     # limit needs non logspace x & y data! (at least if computed in this simple way)
-    g4Lin = np.linspace(0.0, 1e-40, 1000)
-    likelihoodLin = [totalLikelihood(dataset1, dataset2, dataset3, g4, likelihoodFunction) for g4 in g4Lin]
+    g4Lin = np.linspace(0.0, 1e-40, 2000) # mayvbe I need more steps? Or a smaller g range?
+    likelihoodLin = totalLikelihood(dataset1, dataset2, dataset3, g4Lin, likelihoodFunction)
     LCumSum = np.cumsum(likelihoodLin)          # cumulative sum
     LMax = LCumSum.max()               # maximum of the cumulative sum
     LCdf = LCumSum / LMax              # normalize to get (empirical) CDF
@@ -429,6 +476,10 @@ def main():
         print(f"Total number of expected background counts via integral of {dataset.name} =  {totalBackground(dataset)}" )
         lim = limit(dataset, likelihoodIgor)
         print(f"\033[1;35;40m Limit Igor at : {pow(lim, 0.25)}\033[0m")
+
+        print(f"Total number of expected background counts via integral of {dataset.name} =  {totalBackground(dataset)}" )
+        lim = limit(dataset, likelihoodCris)
+        print(f"\033[1;35;40m Limit Cris at : {pow(lim, 0.25)}\033[0m")
 
         #g_aγs = np.linspace(-1e-40, 1e-40, 1000)
         #logL = [logLikelihood(g_aγ, dfCandidates) for g_aγ in g_aγs]
@@ -476,8 +527,32 @@ def main():
     totalLim = totalLimit(dataset_Ar1, dataset_Ar2, dataset_Xe, likelihoodIgor)
     print(f"\033[1;35;40m Combined limit Igor  at : {pow(totalLim, 0.25)}\033[0m")
 
+    totalLim = totalLimit(dataset_Ar1, dataset_Ar2, dataset_Xe, likelihoodCris)
+    print(f"\033[1;35;40m Combined limit Cris  at : {pow(totalLim, 0.25)}\033[0m")
+
+    # first two quick plots
+    g4Lin = np.linspace(-2e-40, 1e-40, 1000)
+    likelihoodLin = totalLikelihood(dataset_Ar1, dataset_Ar2, dataset_Xe, g4Lin, likelihood)
+    plt.plot(g4Lin, likelihoodLin)
+    plt.xlabel("Coupling constant (GeV$^{-4}$)")
+    plt.ylabel("Likelihood")
+    plt.show()
+    plt.axvline(x=totalLim, color='r')
+    plt.savefig(f"energy_bins_likelihood_g4_unbinned_all_datasets_optimized.pdf")
+    plt.close()
+
+    g_aγs = np.linspace(-3.0e-40,1.0e-40, 1000)
+    logL2 = totalLogLikelihood(dataset_Ar1, dataset_Ar2, dataset_Xe, g_aγs, chi2)
+    plt.plot(g_aγs, logL2)
+    plt.xlabel(' $g_{aγ}^4$ (GeV$^{-4}$)')
+    plt.ylabel('-2log L or Chi$^2$')
+    plt.show()
+    plt.savefig(f"ChiSquareg4_Cris_approach_all_datasets_zoom_optimized.pdf")
+    plt.close()
+
+    # other plots
     g4Lin = np.linspace(0.0, 1e-40, 1000)
-    likelihoodLin = [totalLikelihood(dataset_Ar1, dataset_Ar2, dataset_Xe, g4, likelihood) for g4 in g4Lin]
+    likelihoodLin = totalLikelihood(dataset_Ar1, dataset_Ar2, dataset_Xe, g4Lin, likelihood)
     plt.plot(g4Lin, likelihoodLin)
     plt.xlabel("Coupling constant (GeV$^-4$)")
     plt.ylabel("Likelihood")
@@ -488,7 +563,7 @@ def main():
     plt.close()
 
     g4Lin = np.linspace(0.0, 1e-40, 1000)
-    likelihoodLin = [totalLikelihood(dataset_Ar1, dataset_Ar2, dataset_Xe, g4, likelihood2) for g4 in g4Lin]
+    likelihoodLin = totalLikelihood(dataset_Ar1, dataset_Ar2, dataset_Xe, g4Lin, likelihood2)
     plt.plot(g4Lin, likelihoodLin)
     plt.xlabel("Coupling constant (GeV$^-4$)")
     plt.ylabel("Likelihood")
@@ -499,23 +574,56 @@ def main():
     plt.close()
 
     g4Lin = np.linspace(0.0, 1e-40, 1000)
-    likelihoodLin = [totalLikelihood(dataset_Ar1, dataset_Ar2, dataset_Xe, g4, likelihoodIgor) for g4 in g4Lin]
+    likelihoodLin = totalLikelihood(dataset_Ar1, dataset_Ar2, dataset_Xe, g4Lin, likelihoodIgor)
     plt.plot(g4Lin, likelihoodLin)
     plt.xlabel("Coupling constant (GeV$^-4$)")
     plt.ylabel("Likelihood")
     plt.axvline(x=totalLim, color='r')
     plt.savefig(f"energy_bins_likelihoodIgor_g4_unbinned_all_datasets.pdf")
     plt.close()
-
+    """
     g_aγs = np.linspace(-3.0e-40, 3.0e-40, 1000)
     logL2 = [totalLogLikelihood(dataset_Ar1, dataset_Ar2, dataset_Xe, g_aγ, minusLogLikelihoodIgor) for g_aγ in g_aγs]
     plt.plot(g_aγs, logL2)
     plt.xlabel(' $g_{aγ}^4$ (GeV$^{-4}$)')
     plt.ylabel('-log L or Chi$^2/2$')
-    plt.show()
     plt.savefig(f"ChiSquareg4_Igor_approach_all_datasets_zoom.pdf")
+    plt.show()
     plt.close()
     #plt.savefig(f"ChiSquareg4_Nature_approach_all_datasets.pdf")
+    findMinimumMinusLogLikelihood(minusLogLikelihoodIgor, dataset, g_aγs)
+    """
+    g4Lin = np.linspace(0.0, 1e-40, 1000)
+    likelihoodLin = totalLikelihood(dataset_Ar1, dataset_Ar2, dataset_Xe, g4Lin, likelihoodCris)
+    plt.plot(g4Lin, likelihoodLin)
+    plt.xlabel("Coupling constant (GeV$^-4$)")
+    plt.ylabel("Likelihood")
+    plt.axvline(x=totalLim, color='r')
+    plt.savefig(f"energy_bins_likelihoodCris_g4_unbinned_all_datasets.pdf")
+    plt.close()
+    """
+    g_aγs = np.linspace(-3.0e-40, 3.0e-40, 1000)
+    logL2 = [totalLogLikelihood(dataset_Ar1, dataset_Ar2, dataset_Xe, g_aγ, minusLogLikelihoodCris) for g_aγ in g_aγs]
+    plt.plot(g_aγs, logL2)
+    plt.xlabel(' $g_{aγ}^4$ (GeV$^{-4}$)')
+    plt.ylabel('-log L or Chi$^2/2$')
+    #plt.show()
+    plt.savefig(f"ChiSquareg4_Cris_approach_all_datasets_zoom.pdf")
+    plt.close()
+    #plt.savefig(f"ChiSquareg4_Nature_approach_all_datasets.pdf")
+    #findMinimumMinusLogLikelihood(likelihoodCris, dataset, g_aγs)
+    """
+    g_aγs = np.linspace(-3.0e-40, 3.0e-40, 1000)
+    logL2 = totalLogLikelihood(dataset_Ar1, dataset_Ar2, dataset_Xe, g_aγs, chi2)# 2*minusLogLikelihoodCris
+    plt.plot(g_aγs, logL2)
+    plt.xlabel(' $g_{aγ}^4$ (GeV$^{-4}$)')
+    plt.ylabel('-2log L or Chi$^2$')
+    #plt.show()
+    plt.savefig(f"ChiSquareg4_Cris_approach_all_datasets_zoom.pdf")
+    plt.close()
+    #plt.savefig(f"ChiSquareg4_Nature_approach_all_datasets.pdf")
+    findMinimumMinusLogLikelihood(chi2, dataset, g_aγs)
+
     """
     g_aγs = np.linspace(-1.0e-40, 1.0e-40, 1000)
     logL2 = [totalLikelihood(dataset_Ar1, dataset_Ar2, dataset_Xe, g_aγ, logLikelihood) for g_aγ in g_aγs]
@@ -525,13 +633,32 @@ def main():
     plt.savefig(f"ChiSquareg4_likelihood_approach_all_datasets_e40.pdf")
     plt.close()
     """
+    """
     g_aγs = np.linspace(-3.0e-40, 3.0e-40, 1000)
     logL2 = [totalLogLikelihood(dataset_Ar1, dataset_Ar2, dataset_Xe, g_aγ, logLikelihood2) for g_aγ in g_aγs]
     plt.plot(g_aγs, logL2)
     plt.xlabel(' $g_{aγ}^4$ (GeV$^{-4}$)')
     plt.ylabel('-log L or Chi$^2/2$')
-    plt.show()
+    #plt.show()
     plt.savefig(f"ChiSquareg4_likelihood2_approach_all_datasets_zoom.pdf")
+    plt.close()
+    """
+    g_aγs = np.linspace(-3.0e-40, 3.0e-40, 1000)
+    logL2 = totalLogLikelihood(dataset_Ar1, dataset_Ar2, dataset_Xe, g_aγs, chi2basti)
+    plt.plot(g_aγs, logL2)
+    plt.xlabel(' $g_{aγ}^4$ (GeV$^{-4}$)')
+    plt.ylabel('-2log L or Chi$^2$')
+    #plt.show()
+    plt.savefig(f"ChiSquareg4_chi2basti_approach_all_datasets_zoom.pdf")
+    plt.close()
+
+    g_aγs = np.linspace(-3.0e-40, 3.0e-40, 1000)
+    logL2 = totalLogLikelihood(dataset_Ar1, dataset_Ar2, dataset_Xe, g_aγs, chi2igor)
+    plt.plot(g_aγs, logL2)
+    plt.xlabel(' $g_{aγ}^4$ (GeV$^{-4}$)')
+    plt.ylabel('-2log L or Chi$^2$')
+    #plt.show()
+    plt.savefig(f"ChiSquareg4_chi2igor_approach_all_datasets_zoom.pdf")
     plt.close()
     """
     g_aγs = np.linspace(-1.0e-39, 1.0e-39, 1000)
