@@ -44,8 +44,9 @@ def MCLimit(dataset, energies, x_min, x_max, y_min, y_max, nmc, likelihoodFuncti
         #filename = f"drawn_candidates_{i+1}.csv"
         #np.savetxt(filename, candidates, delimiter=",")
         # Compute the likelihood line for this set of candidates
-        g4Lin = np.linspace(0.0, 5e-40, 1000)
-        likelihoodLin = [likelihoodFunction(dataset, g4, candidates) for g4 in g4Lin]
+        g4Lin = np.linspace(0.0, 5e-40, 5000)
+        #likelihoodLin = [likelihoodFunction(dataset, g4, candidates) for g4 in g4Lin]
+        likelihoodLin = likelihoodFunction(dataset, g4Lin, candidates)
         LCumSum = np.cumsum(likelihoodLin)
         LMax = LCumSum.max()
         LCdf = LCumSum / LMax
@@ -54,18 +55,45 @@ def MCLimit(dataset, energies, x_min, x_max, y_min, y_max, nmc, likelihoodFuncti
         print(f"Toy (expected) limit i = {i} is = {pow(limits[i], 0.25)}")
 
     # Save the limits to a text file after all iterations are complete
-    np.savetxt("unbinned_expected_limits_g4_2.csv", limits, delimiter=",")
+    np.savetxt("unbinned_expected_limits_g4_fast_arrays_Ar1.csv", limits, delimiter=",")
     
     # Return the limits
+    return limits
+
+
+def MCLimit_combined(datasets, energies, x_min, x_max, y_min, y_max, nmc, likelihoodFunction):
+    limits = np.zeros(nmc)  # Store the limit for each Monte Carlo iteration
+    g4Lin = np.linspace(0.0, 5e-40, 5000)  # g4 values
+    for i in range(nmc):
+        combined_likelihoodLin = np.ones_like(g4Lin)
+        for dataset in datasets:
+            candidates = drawCandidates(dataset, energies, x_min, x_max, y_min, y_max)
+            likelihoodLin = likelihoodFunction(dataset, g4Lin, candidates)
+            combined_likelihoodLin *= likelihoodLin  # Combine likelihoods
+        LCumSum = np.cumsum(combined_likelihoodLin)
+        LMax = LCumSum.max()
+        LCdf = LCumSum / LMax
+        limitIdx = bisect_left(LCdf, 0.95)
+        limits[i] = g4Lin[limitIdx]
+        print(f"Toy (expected) limit i = {i} is = {pow(limits[i], 0.25)}")
+    np.savetxt("combined_expected_limits_g4_fast_arrays.csv", limits, delimiter=",")
     return limits
 
 # Example energy bins and number of simulations
 energies = np.linspace(0.0, 12.0, 1000) #when I'm sure it all works fine.
 #energies = np.linspace()
-nmc = 1000  # Number of Monte Carlo simulations 1000 takes 330 minutes
+nmc = 50000  # Number of Monte Carlo simulations 1000 takes 330 minutes usign for loops.
+
+# Perform the Monte Carlo limit calculations
+datasets = [dataset_Ar1, dataset_Ar2, dataset_Xe]
+MCLimits_combined = MCLimit_combined(datasets, energies, x_min, x_max, y_min, y_max, nmc, likelihood_with_candidates)
+print(f"Combined expected limit via median at : {pow(np.median(MCLimits_combined), 0.25)}")
+
+
+
 
 # Perform the Monte Carlo limit calculations
 MCLimits = MCLimit(dataset_Ar1, energies, x_min, x_max, y_min, y_max, nmc, likelihood_with_candidates)
 
 # Print out the median expected limit
-print(f"Expected limit via median at : {pow(np.median(MCLimits), 0.25)}")
+#print(f"Expected limit via median at : {pow(np.median(MCLimits), 0.25)}")
