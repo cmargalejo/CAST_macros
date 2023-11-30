@@ -36,7 +36,7 @@ def likelihood_with_candidates(dataset, g_aγ4, candidates):
         result *= s + b  # Multiply by the likelihood contribution of this candidate    
     return result
 
-def MCLimit(dataset, energies, x_min, x_max, y_min, y_max, nmc, likelihoodFunction):
+def MCLimit(dataset, energies, x_min, x_max, y_min, y_max, nmc, likelihoodFunction, dataset_name ):
     limits = np.zeros(nmc)  # Array to store the limit for each Monte Carlo iteration
     for i in range(nmc):
         # Draw candidates for this iteration
@@ -55,7 +55,9 @@ def MCLimit(dataset, energies, x_min, x_max, y_min, y_max, nmc, likelihoodFuncti
         print(f"Toy (expected) limit i = {i} is = {pow(limits[i], 0.25)}")
 
     # Save the limits to a text file after all iterations are complete
-    np.savetxt("unbinned_expected_limits_g4_fast_arrays_Ar1.csv", limits, delimiter=",")
+    filename = f"unbinned_expected_limits_g4_fast_arrays_{dataset_name}.csv"
+    np.savetxt(filename, limits, delimiter=",")
+    #np.savetxt("unbinned_expected_limits_g4_fast_arrays_Ar1.csv", limits, delimiter=",")
     
     # Return the limits
     return limits
@@ -93,7 +95,14 @@ print(f"Combined expected limit via median at : {pow(np.median(MCLimits_combined
 
 
 # Perform the Monte Carlo limit calculations
-MCLimits = MCLimit(dataset_Ar1, energies, x_min, x_max, y_min, y_max, nmc, likelihood_with_candidates)
+#MCLimits = MCLimit(dataset_Ar1, energies, x_min, x_max, y_min, y_max, nmc, likelihood_with_candidates)
+
+datasets = [(dataset_Ar1, "Ar1"), (dataset_Ar2, "Ar2"), (dataset_Xe, "Xe")]
+MCLimits = []
+
+for dataset, dataset_name in datasets:
+    limits = MCLimit(dataset, energies, x_min, x_max, y_min, y_max, nmc, likelihood_with_candidates, dataset_name)
+    MCLimits.append(limits)
 
 # Print out the median expected limit
 #print(f"Expected limit via median at : {pow(np.median(MCLimits), 0.25)}")
