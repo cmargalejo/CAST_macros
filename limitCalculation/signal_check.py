@@ -10,7 +10,11 @@ total_signal_value = totalSignal(dataset, g_aγ4)
 print("Total signal is: ", total_signal_value, " counts")
 
 total_background = totalBackground(dataset) # counts
-proportional_bck = 530 * 130.367 / 2476 # 530 is the number of counts during 2476 h of no tracking. I hace 130.367 h of tracking, so the proporiton is 19.
+backgroundTime = 2476
+trackingTime = 130.367
+backgroundExpCounts = 530
+ratio = trackingTime / backgroundTime
+proportional_bck = backgroundExpCounts * ratio # 530 is the number of counts during 2476 h of no tracking. I hace 130.367 h of tracking, so the proporiton is 19.
 print("Total background during tracking time is: ", total_background, " counts, which should match the known number of background counts, i.e.,", proportional_bck ," counts.")
 
 # Sum up the individual signals
@@ -22,21 +26,35 @@ n = 100 #40  # Number of rectangles along one dimension in the 20 mm side square
 area_per_pixel = 4.0 / n**2  # Area of each small rectangle (pixel) in cm2
 
 # Define the range for the coordinates (assuming a square detector area)
-x_min, x_max = -1, 1  # Coordinate ranges in cm
-y_min, y_max = -1, 1
+x_min, x_max = -10, 10  # Coordinate ranges in cm
+y_min, y_max = -10, 10
 
 # Calculate the number of steps and the size of each step for x and y
-n_steps = int((x_max - x_min) / np.sqrt(area_per_pixel))
+n_steps = n #int((x_max - x_min) / np.sqrt(area_per_pixel))
+print("steps: ", n_steps)
 x_steps = np.linspace(x_min, x_max, n_steps)
 y_steps = np.linspace(y_min, y_max, n_steps)
+
+cws = 0.0
+for x in x_steps:
+    for y in y_steps:
+        cws += candidate_weights(dataset, x, y) * area_per_pixel
+print("Candidate weights sum : ", cws)
 
 individual_signals_sum = 0 # in c/keV/cm2
 for E in Es:
     for x in x_steps:
         for y in y_steps:
-            individual_signals_sum += signal(dataset, E, g_aγ4, x, y) * area_per_pixel * energy_bin_width # in counts
+            s = signal(dataset, E, g_aγ4, x, y)
+            #print("Signal {}, area {}, ΔE {}".format(s, area_per_pixel, energy_bin_width))
+            individual_signals_sum += s * area_per_pixel * energy_bin_width # in counts
+#individual_signals_sum = np.sum(signal(dataset, Es, g_aγ4, x_steps, y_steps) * area_per_pixel * energy_bin_width) # in counts
             #units are counts keV⁻¹ cm^-2, so that's why I multiply by area and ΔE, to make sure the units are comparable with those of totalSignal
 
+bs = 0.0
+for E in Es:
+    bs += background(dataset, E) * energy_bin_width * np.pi
+print("Background integrated to total background time: ", bs, " vs expected: ", backgroundExpCounts * ratio)
 # Compare the two values
 """
 if np.isclose(total_signal_value, individual_signals_sum):
@@ -50,7 +68,7 @@ print(f"Total signal: {total_signal_value} counts, Sum of individual signals: {i
 
 # add check that if I integrate the background I do get the expected number of counts, i.e. 530 counts according to my excel sheet
 """
-Central bin value (keV)	NEW Background per energy range R=10mm	Error  (c/keV/cm^2/s)		
+Central bin value (keV)	NEW Background per energy range R=10mm	Error  (c/keV/cm^2/s)
 0.5	1	1	3.57E-08	3.57E-08
 1.5	18	4	6.43E-07	1.52E-07
 2.5	74	9	2.64E-06	3.07E-07
@@ -67,5 +85,4 @@ Central bin value (keV)	NEW Background per energy range R=10mm	Error  (c/keV/cm^
 """
 
 # also check that background and totalBackground give 530. In the background case go bin by bin and sum them up.
-
 
