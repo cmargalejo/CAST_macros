@@ -18,6 +18,7 @@ x_max = 10.0
 y_min = -10.0
 y_max = 10.0
 readoutArea = 1**2 * np.pi #0.16*np.pi #36 # in cm^2. 
+areaPerPixel = 0.01 * 0.01 # in cm^2
 # If I assume all flux is focused into a circular area of radius 4 mm. Thus pi*r^2= pi* 0.4^2 cm² on the detector. Relevant area for background!
 # Is I assume 10 mm radius, then area = pi * 1^2 cm^2  = pi cm^2
 #readoutArea = (x_max - x_min) * (y_max - y_min) / 100.0 # in cm
@@ -63,16 +64,26 @@ def setupAxionImageInterpolator(filename, convolved_resolution): #I should check
     unique_y = pd.unique(df["y"])
     #print("unique x = ", unique_x, "unique y = ", unique_y)
     # Construct array for interpolation
+    #areaPerPixel = 0.01 * 0.01 # strip pitch in cm, final units in cm^2. But in the .txt file I have data every 0.1 mm, which is 0.01 cm
+    area = 4.0 # total area of the ism is 4 cm^2
+    pixels = 40000.0 # number of pixels in 4 cm^2, which is my total area
+    pixelPerArea = pixels/ area # number of pixels in 1 cm^2, in my case 40000/4 = 10000 = 1e4 pixels cm^2
     zs = np.zeros([size, size])
     zSum = np.sum(df["z"])
-    areaPerPixel = 0.01 * 0.01 # strip pitch in cm, final units in cm^2. But in the .txt file I have data every 0.1 mm, which is 0.01 cm
     for x in range(size):
         for y in range(size):
             ## Important: First entries are `x`, second `y`. "Matrix" convention, i.e.
             ## first index is *row*, not column!
             z = df["z"][x * size + y] 
-            zs[x, y] = (z / zSum / areaPerPixel) # Sorted by `x` first, hence `x` changes NORMALIZATION TO 1 if we cover the entire readout
+            # ######### Not using any area --> I will need to express the background rate per pixel, just by multiplying it by pixel area #########
+            zs[x, y] = (z / zSum )
+            # ######### USING areaPerPixel #########
+            #zs[x, y] = (z / zSum / areaPerPixel) # Sorted by `x` first, hence `x` changes NORMALIZATION TO 1 if we cover the entire readout
                                              # *after* y.
+            # ######### USING pixelPerArea #########
+            #zs[x,y] = (z / zSum) # rate in a pixel (also per pixel, because it is as if I had all the pixels stacked one on top of the other)
+            #zs[x,y] = zs[x,y] * pixelPerArea    # flux in a single pixel (i.e., per pixel), but we need to express it in the unit area, i.e., cm^2,
+                                                # and not per pixel. Otherwise, the units won't match with the background units.
     # Convolve the data with a Gaussian kernel
     sigma = convolved_resolution / 2.35482 #by definition, convolved_resolution = FWHM = 2 * sqrt(2 * ln(2)) * sigma = 2.35482 * sigma
     sigma = sigma / 100 # to convert into um
@@ -195,6 +206,10 @@ def conversionProbability():
     B = 9.0 * 195.353 #to convert into natural units. I need the factor 195.353 and the resulting units for B turn into eV^2. See tesla_conversion.nim
     L = 9.26 * 5.06773e+06 # resulting units in eV^-1
     return (1 / 10**9 * B * L / 2.0) ** 2 # divided by 10**9 to convert from GeV^-1 to eV^-1
+    # in units GeV^-2 as it is written, because I don't use g here but later when I compute the signal, because it was easier for the code implementation.
+    # This happens because we want to walk over g^4, but here we only have g^2 and the other g^2 is part of solarAxionFlux. Instead of taking square roots
+    # and overcomplicating things, we just multiply by g^4 at a later stage.
+    
 
 # Here, dfTel and lerpTel are global variables that are defined independently of the function telescopeEff.
 # So they are only done once, and then used inside the function if this is called.
@@ -266,11 +281,11 @@ def totalSignal(dataset, g_aγ4):
 ## NOTE: only important that signal and background have the same units!
 # It gives the amount of signal in counts keV⁻¹ expected for each channel.
 # In this case channels are energy bins, so correspond to energy E.
-def signal(dataset, E, g_aγ4, x, y): # in counts keV⁻¹ cm^-2
+def signal(dataset, E, g_aγ4, x, y):    # in counts keV⁻¹ (per pixel). Not by cm^-2 anymore because I don't renormalise the weights so that they are dimensionless.
+                                        # I take care of this in the background function by expressing the back per pixel instead of per cm^2.
     ## Returns the axion flux based on `g` and energy `E`
     #print("Solar axion flux = ", solarAxionFlux(E), ", area of bore = ", areaBore, ", conversion probability = ", conversionProbability(), ", telescope eff = ", telescopeEff(E), ", detector eff = ", detectorEff(dataset, E), ", software eff = ", softwareEff(dataset, E), "gag = ", g_aγ4, "candidate weights = ", candidate_weights(dataset, x, y))
     return solarAxionFlux(E) * dataset.total_time * areaBore * conversionProbability() * telescopeEff(E) * detectorEff(dataset, E) * softwareEff(dataset, E) * g_aγ4 * candidate_weights(dataset, x, y) #be careful because this area is that of the bore, not the spot on the readout
-
 
 def background(dataset, E):
     ## For the unbinned approach, I need to compute an interpolation of energies and background.    
@@ -279,12 +294,23 @@ def background(dataset, E):
     ## detector, the less background we have compared to the *fixed* signal flux!
     #print("Background = ", (lerpBackground(E) * totalTime * readoutArea))
     #return (dataset.lerpBackground(E) * dataset.total_time * readoutArea ) # in counts keV⁻¹  #be careful because this area is that of the spot on the readout, not the bore
-    return (dataset.lerpBackground(E) * dataset.total_time) # in counts keV⁻¹ cm^-2
+    #areaPerPixel = 0.01 * 0.01 # strip pitch in cm, final units in cm^2. But in the .txt file I have data every 0.1 mm, which is 0.01 cm
+    return (dataset.lerpBackground(E) * dataset.total_time * areaPerPixel) # in counts keV⁻¹, not per cm^-2 because I include areaPerPixel so that weights are dimensionless.
+                                                                            # This is expressing the background not per cm^2 but per a smaller area which is
+                                                                            # the area of a pixel. This way it matches the simulations grid.
+                                                                            # CAUTION!! If I print or plot this background rate, it will make no sense if I interpret
+                                                                            # it in the usual units! It would be extremely low, of order 1e-6*1e-4 = 1e-10!
+                                                                            # 1e-6 is my rate in "standard" units, and 1e-4 is the areaPerPixel. So the units would be
+                                                                            # c kev^-1 1e-4cm^-2 s^-1 ~ c keV^1 pixel^-1 s^-1.
     #return (np.interp(E, Energies, Background) * totalTime * readoutArea)
 
 def totalBackground(dataset):
     energies = np.linspace(0.0,10.0,1000)
-    backgrounds = background(dataset, energies) # gives an array of 1000 background rates in counts keV⁻¹ cm^-2
+    #areaPerPixel = 0.01 * 0.01
+    backgrounds = background(dataset, energies) / areaPerPixel  # gives an array of 1000 background rates in counts keV⁻¹ cm^-2. 
+                                                                # If I don't divide by areaPerPixel it would give the backgorund per pixel.
+                                                                # And below we multiply by readoutArea in cm^2, so I need the same units
+                                                                # to end up getting total counts.
     #return sc.simpson(backgrounds, energies) #this was before, when I had the wrong units in background() because I was including there the readoutArea
     integrated_background = sc.simpson(backgrounds, energies)
     return integrated_background * readoutArea  # Multiply by the readout area to get total counts
@@ -295,17 +321,20 @@ def likelihood(dataset, g_aγ4) -> float:
     candidate_pos_x = np.array(dataset.candidates["xs"])
     candidate_pos_y = np.array(dataset.candidates["ys"])
     idx = 0
+    print("Result = ", result[0])
     for candidate in range(len(cEnergies)): # column names in df are xs, ys, Es
         E = cEnergies[candidate]
         x = candidate_pos_x[candidate]
         y = candidate_pos_y[candidate]
         s = signal(dataset, E, g_aγ4, x, y)
         b = background(dataset, E)
+        print("s = ", s[0], "b = ", b, " result ", result[0])
         result *= s+b    
         #if result < 0.0:
         #    print("got less 0 ", result, " from ", s, " and ", b, " at ", E, " idx ", idx)
         #    quit()
         idx += 1
+    print("result ", result[0])
     return result
 
 def likelihood2(dataset, g_aγ4) -> float: # Basti's version based on the division of Poissonian probabilities
@@ -531,8 +560,9 @@ def main():
     print(f"\033[1;35;40m Combined limit Cris  at : {pow(totalLim, 0.25)}\033[0m")
 
     # first two quick plots
-    g4Lin = np.linspace(-2e-40, 1e-40, 1000)
+    g4Lin = np.linspace(0, 5e-40, 1000)
     likelihoodLin = totalLikelihood(dataset_Ar1, dataset_Ar2, dataset_Xe, g4Lin, likelihood)
+    #likelihoodLin = likelihood(dataset_Ar2, g4Lin)
     plt.plot(g4Lin, likelihoodLin)
     plt.xlabel("Coupling constant (GeV$^{-4}$)")
     plt.ylabel("Likelihood")
@@ -541,7 +571,7 @@ def main():
     plt.savefig(f"energy_bins_likelihood_g4_unbinned_all_datasets_optimized.pdf")
     plt.close()
 
-    g_aγs = np.linspace(-3.0e-40,1.0e-40, 1000)
+    g_aγs = np.linspace(-3.0e-40,5.0e-40, 1000)
     logL2 = totalLogLikelihood(dataset_Ar1, dataset_Ar2, dataset_Xe, g_aγs, chi2)
     plt.plot(g_aγs, logL2)
     plt.xlabel(' $g_{aγ}^4$ (GeV$^{-4}$)')

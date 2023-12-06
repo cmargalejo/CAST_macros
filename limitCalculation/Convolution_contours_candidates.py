@@ -103,7 +103,8 @@ def perform_interpolation(filename, csv_filename, isAxion = False):
     for x in range(size):
         for y in range(size):
             z = df["z"][x * size + y] 
-            zs[x, y] = (z / zSum / areaPerPixel) # normalisation (per fraction and per cm^2)
+            #zs[x, y] = (z / zSum / areaPerPixel) # normalisation (per fraction and per cm^2)
+            zs[x, y] = (z / zSum ) # Here I don't normalise because I have redefined the background to bck per pixel instead of per cm^2
 
     # Convolve the data with a Gaussian kernel
     #kernel_size = int(convolved_resolution / 0.1)
