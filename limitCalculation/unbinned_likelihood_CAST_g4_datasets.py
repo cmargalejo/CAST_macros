@@ -52,8 +52,8 @@ def setupAxionImageInterpolator(filename, convolved_resolution): #I should check
     # Compute normalized data. Using *MEAN* of *DATA*
     #df["x"] = df["x"] - df["x"].mean() + 1.3 #because the mean is 31.3, but I have to move it only 30 mm
     #df["y"] = df["y"] - df["y"].mean() + 0.025 #because the mean is 30.25, but I have to move it only 30 mm
-    df["x"] = df["x"] - 31.114 # these are the values of the centroid that match it with the position of the X-ray finger cetnroid
-    df["y"] = df["y"] - 30.283 # these are the values of the centroid that match it with the position of the X-ray finger cetnroid 30.283
+    df["x"] = df["x"] - 31.114 # these are the values of the centroid that match it with the position of the X-ray finger centroid
+    df["y"] = df["y"] - 30.283 # these are the values of the centroid that match it with the position of the X-ray finger centroid 30.283
     # Sort data by *X* then *Y*
     df = df.sort_values(by = ["x", "y"], ascending = True)
     # Number of elements per axis
@@ -531,7 +531,7 @@ def main():
     print(f"\033[1;35;40m Combined limit Cris  at : {pow(totalLim, 0.25)}\033[0m")
 
     # first two quick plots
-    g4Lin = np.linspace(-2e-40, 1e-40, 1000)
+    g4Lin = np.linspace(0, 1e-40, 1000)
     likelihoodLin = totalLikelihood(dataset_Ar1, dataset_Ar2, dataset_Xe, g4Lin, likelihood)
     plt.plot(g4Lin, likelihoodLin)
     plt.xlabel("Coupling constant (GeV$^{-4}$)")
