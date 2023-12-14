@@ -328,6 +328,16 @@ def likelihood(dataset, g_aγ4) -> float:
         y = candidate_pos_y[candidate]
         s = signal(dataset, E, g_aγ4, x, y)
         b = background(dataset, E)
+        # We print s[0] and result[0] here because we wish to see how the likelihood develops
+        # over all the candidates at coupling constant g⁴ = 0, i.e. where signal is always going to be 0.
+        # That means the only contribution comes from the `b` background term. As in this likelihood function
+        # the background always contributes, even if the signal is zero, the resulting likelihood gets smaller
+        # and smaller for every candidate we consider.
+        # For this normalization of the background rate, the numbers of the expected background are smaller by
+        # about a factor 1e3 compared to normalizing by counts keV⁻¹ cm⁻², due to the small size of 0.1·0.1 mm²,
+        # resulting in a *much* stronger suppression of the likelihood in this case, yielding numbers of 1e-142 
+        # for `dataset_Ar1`.
+        # When multiplying 3 datasets of O(1e-100) together we get 'dangerously close' to 1e-308 or whatever it is.
         print("s = ", s[0], "b = ", b, " result ", result[0])
         result *= s+b    
         #if result < 0.0:
@@ -492,8 +502,11 @@ def main():
     #if True: quit()
 
     #Now we finally compute the limit for each dataset
+
     for dataset in [dataset_Ar1, dataset_Ar2, dataset_Xe]:
     #for dataset in [dataset_Xe]:
+        
+        print("Total background : ", totalBackground(dataset))
         print(f"Total number of expected background counts via integral of {dataset.name} =  {totalBackground(dataset)}" )
         lim = limit(dataset, likelihood)
         print(f"\033[1;35;40m Limit likelihood at : {pow(lim, 0.25)}\033[0m")
