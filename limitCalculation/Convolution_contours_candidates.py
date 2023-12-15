@@ -19,8 +19,8 @@ def candidate_position_transformation(positions_data, x_min, x_max, y_min, y_max
     df["xs"] = -df["xs"]
     # Rotate the positions by 0 degrees clockwise (up to the right)
     angle_degrees = 45
-    xs = df["xs"]
-    ys = df["ys"]
+    xs = df["xs"].copy()
+    ys = df["ys"].copy()
     df["xs"] = xs * np.cos(np.radians(angle_degrees))  + ys * np.sin(np.radians(angle_degrees))
     df["ys"] = xs * -np.sin(np.radians(angle_degrees)) + ys * np.cos(np.radians(angle_degrees))
     #rotated_positions_data = np.dot(specular_positions_data, np.array([[np.cos(np.radians(angle_degrees)), -np.sin(np.radians(angle_degrees))],
