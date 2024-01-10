@@ -17,7 +17,7 @@ x_min = -10.0 # in mm
 x_max = 10.0
 y_min = -10.0
 y_max = 10.0
-readoutArea = 1**2 * np.pi #0.16*np.pi #36 # in cm^2. 
+readoutArea = 1**2 * np.pi #0.16*np.pi #36 # in cm^2. 1**2 * np.pi
 # If I assume all flux is focused into a circular area of radius 4 mm. Thus pi*r^2= pi* 0.4^2 cm² on the detector. Relevant area for background!
 # Is I assume 10 mm radius, then area = pi * 1^2 cm^2  = pi cm^2
 #readoutArea = (x_max - x_min) * (y_max - y_min) / 100.0 # in cm
@@ -31,8 +31,10 @@ Energies = np.array([ 0.0, 0.5, 1.5, 2.5, 3.5, 4.5, 5.5, 6.5, 7.5, 8.5, 9.5, 10.
 BackgroundAr1 = np.array([0, 3.5712E-08, 6.42817E-07, 2.64269E-06, 1.89274E-06, 1.35706E-06, 1.28563E-06, 1.24992E-06, 2.24986E-06, 4.53543E-06, 1.64275E-06, 7.49953E-07, 6.42817E-07, 0]) # for R = 10 mm
 #BackgroundAr2 = np.array([0, 0, 3.29448E-06, 6.58896E-06, 4.94172E-06, 1.64724E-06, 0, 0, 1.64724E-06, 3.29448E-06, 0, 3.29448E-06]) # for R = 4 mm
 BackgroundAr2 = np.array([0, 2.63558E-07, 0, 3.95337E-06, 3.42626E-06, 1.05423E-06, 2.10847E-06, 1.05423E-06, 3.1627E-06, 3.1627E-06, 1.05423E-06, 5.27117E-07, 1.05423E-06, 0]) # for R = 10 mm
-#BackgroundXe = np.array([0, 1.13234E-06, 1.45586E-06, 9.70575E-07, 1.45586E-06, 1.45586E-06, 1.2941E-06, 2.26468E-06, 4.20583E-06, 1.94115E-06, 1.45586E-06, 6.4705E-07]) # for R = 4 mm
-BackgroundXe = np.array([0, 1e-8, 8.28224E-07, 1.55292E-06, 1.24234E-06, 1.60468E-06, 1.31998E-06, 1.44939E-06, 2.76937E-06, 4.94346E-06, 2.61408E-06, 1.8635E-06, 1.19057E-06, 0]) # for R = 10 mm
+#BackgroundXe = np.array([0,	1e-8, 1.13234E-06, 1.2941E-06,	1.2941E-06,  1.45586E-06,	1.77939E-06, 1.4559E-06, 1.45586E-06, 4.52935E-06, 2.74996E-06,	1.61763E-06, 9.70575E-07, 0]) # for R = 4 mm, veto time < 500
+BackgroundXe = np.array([0,	1e-8, 5.17640E-07, 1.52704E-06,	1.44939E-06, 1.60468E-06,	1.55292E-06, 1.34586E-06,	2.48467E-06, 4.99523E-06,	3.70113E-06, 1.9153E-06, 1.83762E-06, 0]) # for R = 10 mm, veto time < 500
+#BackgroundXe = np.array([0, 1.13234E-06, 1.45586E-06, 9.70575E-07, 1.45586E-06, 1.45586E-06, 1.2941E-06, 2.26468E-06, 4.20583E-06, 1.94115E-06, 1.45586E-06, 6.4705E-07]) # for R = 4 mm, veto time < 200
+#BackgroundXe = np.array([0, 1e-8, 8.28224E-07, 1.55292E-06, 1.24234E-06, 1.60468E-06, 1.31998E-06, 1.44939E-06, 2.76937E-06, 4.94346E-06, 2.61408E-06, 1.8635E-06, 1.19057E-06, 0]) # for R = 10 mm, veto time < 200
 
 #Candidates = np.array([0,      2,      0,     0,      0,      0,       0,      2,    8,      0]) #number of candidates in each energy bin or channel
 #dfCandidates = pd.read_csv("data/cluster_candidates_tracking.csv")
@@ -101,6 +103,8 @@ def candidate_position_transformation(positions_data, x_min, x_max, y_min, y_max
     df = df[(df["xs"] * df["xs"] + df["ys"] * df["ys"] < radius*radius)] #100 ir radius^2
     # Filter by energy
     df = df[(df["Es"] < 10)] # Only events below 10 keV
+    #df = df[(df["Es"] < 7)] # Only events below 7 keV
+    #df = df[(df["Es"] > 2)] # Only events above 2 keV
     return df
 
 # Step 1: Define a Dataset Class
@@ -114,6 +118,7 @@ class Dataset:
         print("Number of candidates total readout area: ", len(df))
         self.candidates = candidate_position_transformation(df, -10.0, 10.0, -10.0, 10.0, radius=10.0) # these values define the area
         print("Number of candidates in the inner 10 mm radius circle: ", len(self.candidates))
+        #print(self.candidates)
         self.energies_software = energies_software
         self.energies = energies
         self.lerpBackground = interp1d(energies, background, bounds_error = False, fill_value = "extrapolate") 
@@ -278,7 +283,8 @@ def background(dataset, E):
     ## This also allows us to see that the "closer" we cut to the expected axion signal on the
     ## detector, the less background we have compared to the *fixed* signal flux!
     #print("Background = ", (lerpBackground(E) * totalTime * readoutArea))
-    #return (dataset.lerpBackground(E) * dataset.total_time * readoutArea ) # in counts keV⁻¹  #be careful because this area is that of the spot on the readout, not the bore
+    #return (dataset.lerpBackground(E) * dataset.total_time * readoutArea ) # in counts keV⁻¹  #be careful because this area is that of the spot on the readout, not the bore.
+                                                                            # to be used if I don't use the candidate_weights
     return (dataset.lerpBackground(E) * dataset.total_time) # in counts keV⁻¹ cm^-2
     #return (np.interp(E, Energies, Background) * totalTime * readoutArea)
 
@@ -288,6 +294,7 @@ def totalBackground(dataset):
     #return sc.simpson(backgrounds, energies) #this was before, when I had the wrong units in background() because I was including there the readoutArea
     integrated_background = sc.simpson(backgrounds, energies)
     return integrated_background * readoutArea  # Multiply by the readout area to get total counts
+                                                    # Include readoutArea here if I use candidate_weights, otherwise comment it out
 
 def likelihood(dataset, g_aγ4) -> float:
     result = np.exp(-(totalSignal(dataset, g_aγ4)+totalBackground(dataset))) #e^(-(s_tot + b_tot))
@@ -299,6 +306,9 @@ def likelihood(dataset, g_aγ4) -> float:
         E = cEnergies[candidate]
         x = candidate_pos_x[candidate]
         y = candidate_pos_y[candidate]
+        #weight = dataset.axion_image_weights([x, y])
+        #if weight > 0:
+        #    print(f"Candidate with weight > 0: E={E}, x={x}, y={y}, weight={weight}")
         s = signal(dataset, E, g_aγ4, x, y)
         b = background(dataset, E)
         result *= s+b    
@@ -536,8 +546,8 @@ def main():
     plt.plot(g4Lin, likelihoodLin)
     plt.xlabel("Coupling constant (GeV$^{-4}$)")
     plt.ylabel("Likelihood")
-    plt.show()
     plt.axvline(x=totalLim, color='r')
+    plt.show()
     plt.savefig(f"energy_bins_likelihood_g4_unbinned_all_datasets_optimized.pdf")
     plt.close()
 
