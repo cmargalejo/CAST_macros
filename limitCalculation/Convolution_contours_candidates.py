@@ -38,6 +38,7 @@ def candidate_position_transformation(positions_data, x_min, x_max, y_min, y_max
     #)
     #]
     df = df[(df["xs"] > x_min) & (df["xs"] < x_max) & (df["ys"] > y_min) & (df["ys"] < y_max)]
+    df = df[(df["Es"] < 10)] # Only events below 10 keV
     return df
     #print("Filtered Positions:")
     #print(filtered_positions_data)
@@ -190,10 +191,10 @@ def perform_interpolation(filename, csv_filename, isAxion = False):
         c='red', marker='x', label='Filtered CSV File Positions'
     )
     # Adding ENERGY text labels for each point
-    """
+
     for index, row in filtered_positions_data.iterrows():
         plt.text(row['xs'], row['ys'], f'{row["Es"]:.2f}', color='white', fontsize=8)
-    
+    """
     plt.xlabel('xs')
     plt.ylabel('ys')
     plt.title('Position of Events with Energy Labels')
@@ -219,9 +220,10 @@ def perform_interpolation(filename, csv_filename, isAxion = False):
     # Add the circle of calibration runs
     circle = plt.Circle((0, 0), 8.5, fill=False, edgecolor='white', linestyle='dashed', linewidth=1)
     plt.gca().add_artist(circle)
-    """
+
     circle4 = plt.Circle((0, 0), 4, fill=False, edgecolor='white', linestyle='dashed', linewidth=1)
     plt.gca().add_artist(circle4)
+    """
     circle5 = plt.Circle((0, 0), 5, fill=False, edgecolor='white', linestyle='dashed', linewidth=1)
     plt.gca().add_artist(circle5)
     """
