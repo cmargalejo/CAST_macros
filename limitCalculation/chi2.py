@@ -1,4 +1,5 @@
-from unbinned_likelihood_CAST_g4_datasets import *
+#from unbinned_likelihood_CAST_g4_datasets import *
+from limitLucaLista import *
 """
 g_aγs = np.linspace(-3.0e-40, 3.0e-40, 1000)
 logL2 = [totalLogLikelihood(dataset_Ar1, dataset_Ar2, dataset_Xe, g_aγ, chi2) for g_aγ in g_aγs]
@@ -157,9 +158,9 @@ print("g4 value at this chi2:", g4_at_chi2_target)
 # Now let's plot the -2 log likelihood (or chi2) versus g_aγ including the lines for chi2_target
 plt.plot(g_aγs, logL2, label='Chi-squared')
 plt.axhline(y=chi2_target, color='r', linestyle='--', label='95% CL Target from minimum')
-plt.axhline(y=chi2_target_0, color='r', linestyle='-.', label='95% CL Target from 0')
+#plt.axhline(y=chi2_target_0, color='r', linestyle='-.', label='95% CL Target from 0')
 plt.axvline(x=g4_at_chi2_target, color='g', linestyle='--', label='g_aγ at 95% CL from minumum')
-plt.axvline(x=g_aγ_at_95CL, color='g', linestyle='-.', label='g_aγ at 95% CL from 0')
+#plt.axvline(x=g_aγ_at_95CL, color='g', linestyle='-.', label='g_aγ at 95% CL from 0')
 plt.xlabel('$g_{a\gamma}^4$ (GeV$^{-4}$)')
 plt.ylabel('-2log L or Chi$^2$')
 plt.legend()
@@ -205,7 +206,7 @@ for dataset in datasets:
     #plt.axvline(x=lim_individual, linestyle='--', color='grey')
 """
 # Plotting the total likelihood for all datasets combined
-g4Lin_total = np.linspace(-3e-40, 1e-40, 1000)
+g4Lin_total = np.linspace(0, 1e-40, 1000)
 likelihoodLin_total = totalLikelihood(dataset_Ar1, dataset_Ar2, dataset_Xe, g4Lin_total, likelihood2)
 plt.plot(g4Lin_total, likelihoodLin_total, label='All Datasets Combined', color='black', linewidth=3)
 #plt.axvline(x=totalLim, color='r', linewidth=2)

@@ -78,7 +78,7 @@ def setupAxionImageInterpolator(filename, convolved_resolution): #I should check
     # Convolve the data with a Gaussian kernel
     sigma = convolved_resolution / 2.35482 #by definition, convolved_resolution = FWHM = 2 * sqrt(2 * ln(2)) * sigma = 2.35482 * sigma
     sigma = sigma / 100 # to convert into um
-    print("Sigma = ", sigma)
+    #print("Sigma = ", sigma)
     convolved_zs = gaussian_filter(zs, sigma=sigma, mode='wrap')
     # Create a RegularGridInterpolator
     return RegularGridInterpolator((unique_x, unique_y), convolved_zs, method='linear', bounds_error = False, fill_value = 0.0) #linear, nearest
@@ -136,7 +136,7 @@ dataset_Ar1 = Dataset(
     detector_efficiency="data/ArgonAndWindowEfficiency.csv",
     total_time=130.367, #in hours
     #candidates_csv="data/cluster_candidates_tracking.csv",
-    candidates_csv="data/bg_df_candidates_Ar1.csv",
+    candidates_csv="data/bg_df_candidates_Ar1.csv", # data/bg_df_candidates_Ar1.csv
     #candidates_csv="data/bg_df_candidates_many_candidates_Ar1.csv", #data/bg_df_candidates_zero_candidates.csv data/bg_df_candidates_many_candidates_Ar1.csv 
     energies=Energies,
     energies_software=EnergiesSoftware,
@@ -150,7 +150,7 @@ dataset_Ar2 = Dataset(
     software_efficiency=SoftwareEfficiencyAr2,
     detector_efficiency="data/ArgonAndWindowEfficiency.csv",
     total_time=25.5833, #in hours
-    candidates_csv="data/bg_df_candidates_Ar2.csv",
+    candidates_csv="data/bg_df_candidates_Ar2.csv", # data/bg_df_candidates_Ar2.csv
     #candidates_csv="data/bg_df_candidates_many_candidates_Ar2.csv", #data/bg_df_candidates_zero_candidates.csv data/bg_df_candidates_many_candidates_Ar2.csv 
     energies=Energies,
     energies_software=EnergiesSoftware,
@@ -164,7 +164,7 @@ dataset_Xe = Dataset(
     software_efficiency=SoftwareEfficiencyXe,
     detector_efficiency="data/XenonAndNeonAndWindowEfficiency.csv",
     total_time=159, #in hours
-    candidates_csv="data/bg_df_candidates_Xe.csv",
+    candidates_csv="data/bg_df_candidates_Xe.csv", # data/bg_df_candidates_Xe.csv
     #candidates_csv="data/bg_df_candidates_many_candidates_Xe.csv", #data/bg_df_candidates_zero_candidates.csv data/bg_df_candidates_many_candidates_Xe.csv 
     energies=Energies,
     energies_software=EnergiesSoftware,
@@ -183,13 +183,13 @@ dataset_Xe = Dataset(
 def solarAxionFlux(ω: float) -> float: # ω is axion energy in keV, in units 10^-12
     # From CAST constraints on the axion-electron coupling (2013)
     # axion flux produced by the Primakoff effect in solar core in units of keV⁻¹m⁻²yr⁻¹
-    flux = (2.0 * (10 ** 18) * (1 / (10 ** -12)) **2 * ω**2.450 * np.exp(-0.829 * ω ))
+    flux = (2.0 * (10 ** 18) * (1 / (10 ** -12)) **2 * ω**2.450 * np.exp(-0.829 * ω )) # I keep g4 out of the equation. It has to be added later.
     # convert flux to correct units --> keV⁻¹m⁻²yr⁻¹ = 3.17098e-12 keV⁻¹cm⁻²s⁻¹ !!!!
     return flux * 3.17098e-12 #in the correct units keV⁻¹cm⁻²s⁻¹
 
 def solarAxionFlux2019(E: float) -> float:
     phi10 = 6.02 * 10 ** 10 # keV⁻¹cm⁻²s⁻¹
-    flux2019 = phi10 * (1 / (10 ** -10)) ** 2 * E ** 2.481 / np.exp(E/1.205)
+    flux2019 = phi10 * (1 / (10 ** -10)) ** 2 * E ** 2.481 / np.exp(E/1.205) # I keep g4 out of the equation. It has to be added later.
     return flux2019
 
 
@@ -357,6 +357,7 @@ def logLikelihoodBasti(dataset, g_aγ4) -> float: # Basti's version based on the
     return -result
 
 def minusLogLikelihoodCris(dataset, g_aγ4) -> float: # Basti's version based on the division of Poissonian probabilities
+    #print("total background = ", totalBackground(dataset), " and total signal = ",totalSignal(dataset, g_aγ4), " and gag4 = ", g_aγ4 ) 
     result = (totalSignal(dataset, g_aγ4) + totalBackground(dataset)) #((s_tot + b_tot ))
     #print("Total signal result = ", result)
     cEnergies = np.array(dataset.candidates["Es"]) # this will have to be modified when we have the position
@@ -366,6 +367,9 @@ def minusLogLikelihoodCris(dataset, g_aγ4) -> float: # Basti's version based on
         E = cEnergies[candidate]
         x = candidate_pos_x[candidate]
         y = candidate_pos_y[candidate]
+        weight = dataset.axion_image_weights([x, y])
+        if weight > 0:
+            print(f"Candidate with weight > 0: E={E}, x={x}, y={y}, weight={weight}")
         s = signal(dataset, E, g_aγ4, x, y)
         b = background(dataset, E)
         result -= np.log(s+b)
@@ -470,8 +474,8 @@ def main():
     print(likelihood2(dataset_Xe, -1e-38))
     print(likelihood2(dataset_Xe, 0))
     print(likelihood2(dataset_Xe, 1e-38))
+    print(likelihoodCris(dataset_Xe, 0.0))
     #if True: quit()
-
     #Now we finally compute the limit for each dataset
     for dataset in [dataset_Ar1, dataset_Ar2, dataset_Xe]:
     #for dataset in [dataset_Xe]:
@@ -551,7 +555,7 @@ def main():
     plt.savefig(f"energy_bins_likelihood_g4_unbinned_all_datasets_optimized.pdf")
     plt.close()
 
-    g_aγs = np.linspace(-3.0e-40,1.0e-40, 1000)
+    g_aγs = np.linspace(-10.0e-40,1.0e-40, 1000)
     logL2 = totalLogLikelihood(dataset_Ar1, dataset_Ar2, dataset_Xe, g_aγs, chi2)
     plt.plot(g_aγs, logL2)
     plt.xlabel(' $g_{aγ}^4$ (GeV$^{-4}$)')
@@ -561,6 +565,26 @@ def main():
     plt.close()
 
     # other plots
+
+    g4Lin = np.linspace(0, 1e-40, 1000)
+    likelihoodLin = likelihoodCris(dataset_Xe, g4Lin )
+    plt.plot(g4Lin, likelihoodLin)
+    plt.xlabel("Coupling constant (GeV$^{-4}$)")
+    plt.ylabel("Likelihood for Xe dataset only")
+    plt.axvline(x=totalLim, color='r')
+    plt.show()
+    plt.savefig(f"energy_bins_likelihood_g4_unbinned_Xe_datasets_optimized.pdf")
+    plt.close()
+
+    g4Lin = np.linspace(-5e-40, 1e-40, 1000)
+    likelihoodLin = chi2(dataset_Xe, g4Lin )
+    plt.plot(g4Lin, likelihoodLin)
+    plt.xlabel("Coupling constant (GeV$^{-4}$)")
+    plt.ylabel("Chi2 for Xe dataset only")
+    plt.show()
+    plt.savefig(f"energy_bins_likelihood_g4_unbinned_Xe_datasets_optimized.pdf")
+    plt.close()
+
     g4Lin = np.linspace(0.0, 1e-40, 1000)
     likelihoodLin = totalLikelihood(dataset_Ar1, dataset_Ar2, dataset_Xe, g4Lin, likelihood)
     plt.plot(g4Lin, likelihoodLin)
@@ -623,7 +647,7 @@ def main():
     #plt.savefig(f"ChiSquareg4_Nature_approach_all_datasets.pdf")
     #findMinimumMinusLogLikelihood(likelihoodCris, dataset, g_aγs)
     """
-    g_aγs = np.linspace(-3.0e-40, 3.0e-40, 1000)
+    g_aγs = np.linspace(-4.5e-40, 3.0e-40, 1000)
     logL2 = totalLogLikelihood(dataset_Ar1, dataset_Ar2, dataset_Xe, g_aγs, chi2)# 2*minusLogLikelihoodCris
     plt.plot(g_aγs, logL2)
     plt.xlabel(' $g_{aγ}^4$ (GeV$^{-4}$)')
