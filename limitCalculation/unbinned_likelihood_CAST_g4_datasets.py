@@ -338,7 +338,7 @@ def likelihood(dataset, g_aγ4) -> float:
         # resulting in a *much* stronger suppression of the likelihood in this case, yielding numbers of 1e-142 
         # for `dataset_Ar1`.
         # When multiplying 3 datasets of O(1e-100) together we get 'dangerously close' to 1e-308 or whatever it is.
-        print("s = ", s[0], "b = ", b, " result ", result[0])
+        print("s = ", s[0], "b = ", b, " result e^-(s+b) ", result[0])
         result *= s+b    
         #if result < 0.0:
         #    print("got less 0 ", result, " from ", s, " and ", b, " at ", E, " idx ", idx)
